@@ -8,53 +8,18 @@ from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
 
-class STN3d(nn.Module):
-    def __init__(self):
-        super(STN3d, self).__init__()
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
-        self.conv2 = torch.nn.Conv1d(64, 128, 1)
-        self.conv3 = torch.nn.Conv1d(128, 1024, 1)
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 9)
-        self.relu = nn.ReLU()
-
-        self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.bn3 = nn.BatchNorm1d(1024)
-        self.bn4 = nn.BatchNorm1d(512)
-        self.bn5 = nn.BatchNorm1d(256)
-
-
-    def forward(self, x):
-        batchsize = x.size()[0]
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = torch.max(x, 2, keepdim=True)[0]
-        x = x.view(-1, 1024)
-
-        x = F.relu(self.bn4(self.fc1(x)))
-        x = F.relu(self.bn5(self.fc2(x)))
-        x = self.fc3(x)
-
-        iden = Variable(torch.from_numpy(np.array([1,0,0,0,1,0,0,0,1]).astype(np.float32))).view(1,9).repeat(batchsize,1)
-        if x.is_cuda:
-            iden = iden.cuda()
-        x = x + iden
-        x = x.view(-1, 3, 3)
-        return x
-
 # Spatial Transformer Network (k-dimensional inputs)
+# First is for input data (dim = 3, 6)
+# Second is for point features
 class STNkd(nn.Module):
-    def __init__(self, k=64):
+    def __init__(self, input_dim):
         super(STNkd, self).__init__()
-        self.conv1 = torch.nn.Conv1d(k, 64, 1)
+        self.conv1 = torch.nn.Conv1d(input_dim, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k*k)
+        self.fc3 = nn.Linear(256, input_dim*input_dim)
         self.relu = nn.ReLU()
 
         self.bn1 = nn.BatchNorm1d(64)
@@ -63,7 +28,7 @@ class STNkd(nn.Module):
         self.bn4 = nn.BatchNorm1d(512)
         self.bn5 = nn.BatchNorm1d(256)
 
-        self.k = k
+        self.input_dim = input_dim
 
     def forward(self, x):
         batchsize = x.size()[0]
@@ -77,21 +42,21 @@ class STNkd(nn.Module):
         x = F.relu(self.bn5(self.fc2(x)))
         x = self.fc3(x)
 
-        iden = Variable(torch.from_numpy(np.eye(self.k).flatten().astype(np.float32))).view(1,self.k*self.k).repeat(batchsize,1)
+        iden = Variable(torch.from_numpy(np.eye(self.input_dim).flatten().astype(np.float32))).view(1,self.input_dim*self.input_dim).repeat(batchsize,1)
         if x.is_cuda:
             iden = iden.cuda()
         x = x + iden
-        x = x.view(-1, self.k, self.k)
+        x = x.view(-1, self.input_dim, self.input_dim)
         return x
 
 class PointNetfeat(nn.Module):
-    def __init__(self, global_feat = True, feature_transform = False):
+    def __init__(self, input_dim, global_feat = True, feature_transform = False):
         super(PointNetfeat, self).__init__()
-        self.stn = STN3d()
+        self.stn = STNkd(input_dim=input_dim)
 
         # Fixed based off Git issues
         # First MLP
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
+        self.conv1 = torch.nn.Conv1d(input_dim, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 64, 1)
 
         # Second MLP
@@ -164,12 +129,13 @@ class PointNetCls(nn.Module):
 # Based on https://github.com/fxia22/pointnet.pytorch
 class PointNetLatent(nn.Module):
 
-    def __init__(self, num_latents = 8, latent_dimension = 32, feature_transform=False):
+    def __init__(self, input_dim, num_latents = 8, latent_dimension = 32, feature_transform=False, normalize_latents = False):
         super(PointNetLatent, self).__init__()
         self.num_latents = num_latents
         self.latent_dimension = latent_dimension
         self.feature_transform = feature_transform
-        self.feat = PointNetfeat(global_feat=True, feature_transform=feature_transform)
+        self.normalize_latents = normalize_latents
+        self.feat = PointNetfeat(input_dim=input_dim, global_feat=True, feature_transform=feature_transform)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, num_latents * latent_dimension)
@@ -187,7 +153,9 @@ class PointNetLatent(nn.Module):
         # Global feature -> Latent Codes
         x = x.view(-1, self.num_latents, self.latent_dimension)
 
-        return F.normalize(x, dim=2), trans, trans_feat
+        if self.normalize_latents : 
+            x = F.normalize(x, dim=2)
+        return x, trans, trans_feat
 
 # Regularizer loss for transformation network
 def feature_transform_regularizer(trans):
@@ -202,6 +170,12 @@ def feature_transform_regularizer(trans):
 if __name__ == '__main__':
     sim_data = Variable(torch.rand(32,3,1024))
     
-    latent = PointNetLatent(num_latents=8, latent_dimension=32)
+    latent = PointNetLatent(input_dim=sim_data.shape[1], num_latents=8, latent_dimension=32, normalize_latents=True)
     out, _, _ = latent(sim_data)
+    print('latent_features', out.size())
+
+    sim_data_normals = Variable(torch.rand(32,6,1024))
+    
+    latent = PointNetLatent(input_dim=sim_data_normals.shape[1], num_latents=8, latent_dimension=32)
+    out, _, _ = latent(sim_data_normals)
     print('latent_features', out.size())
