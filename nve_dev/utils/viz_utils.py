@@ -3,8 +3,8 @@
 2. Tool for extracting a mesh with marching cubes.
 """
 
-# TODO: Test with empty envelopes
-# TODO: Move cuboid definiton to different file/directory (envelope_utils)
+# TODO: Maybe Move cuboid definiton to different file/directory (envelope_utils)
+# TODO: Implement neuralSDF
 
 from typing import List
 import numpy as np
