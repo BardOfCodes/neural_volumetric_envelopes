@@ -17,4 +17,3 @@ cfg.DATALOADER.NUM_WORKERS = 8
 cfg.TRAINER = CN()
 
 cfg.EVALUATOR = CN()
-

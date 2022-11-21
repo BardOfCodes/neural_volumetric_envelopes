@@ -13,6 +13,7 @@ class Trainer():
     def __init__(self, train_config):
         pass
         # Instantiate logger.
+        # Also train state
     
     def train(self, train_settings):
         

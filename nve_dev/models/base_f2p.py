@@ -7,6 +7,8 @@ import torch
 from torch import nn
 
 # Simple MLP model
+
+
 class FeatureToPoint(nn.Module):
     def __init__(self, n_in, n_out, n_hidden, n_layers, activation=nn.ReLU, unsigned_df=False):
         super().__init__()
@@ -25,6 +27,7 @@ class FeatureToPoint(nn.Module):
         if self.unsigned_df:
             x = torch.abs(x)
         return x
+
 
 if __name__ == "__main__":
     model = FeatureToPoint(8, 1, 64, 2, unsigned_df=True)

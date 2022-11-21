@@ -29,7 +29,8 @@ class NVEModel(nn.modules):
         target_points = envelope['target_points']
         expanded_features = []
         for ind, cur_points in enumerate(target_points):
-            expanded_feature = feats[ind: ind +1].expand(cur_points.shape[0], -1)
+            expanded_feature = feats[ind: ind +
+                                     1].expand(cur_points.shape[0], -1)
             expanded_features.append(expanded_feature)
         # B(E) X 8 X L
         expanded_features = th.cat(expanded_features[0])
