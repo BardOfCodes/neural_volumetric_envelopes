@@ -1,6 +1,7 @@
 import numpy as np
 import open3d as o3d
 
+
 def save_surface_points_per_grid_cell(point_sample_dir, npz_filename, grid_resolution, save_point_clouds=False):
     """
     Given a filepath to a NPZ file containing 3D sample points on the mesh's surface, saves a map 
@@ -27,13 +28,13 @@ def save_surface_points_per_grid_cell(point_sample_dir, npz_filename, grid_resol
 
     # load all sample points (contains on-surface and off-surface query points for this shape)
     all_surface_sample_points = np.load(f"{point_sample_dir}/{npz_filename}")
-    normalized_positions = all_surface_sample_points['surface_points'] 
+    normalized_positions = all_surface_sample_points['surface_points']
 
     # transform positions from [0,1]^3 space to [0, grid_resolution]^3 space
     scaled_positions = grid_resolution * normalized_positions
-        
 
-    grid_cell_ID_to_surface_samples = [] # list stores grid_resolution^3 numpy arrays of variable size, one for each grid cell
+    # list stores grid_resolution^3 numpy arrays of variable size, one for each grid cell
+    grid_cell_ID_to_surface_samples = []
     # for each grid cell, determine if it contains surface sample points and, if so, store the surface points in the map
     for grid_idx in range(grid_resolution**3):
         # find the low and high boundaries along each axis (i.e. the AABB for this grid cell)
@@ -56,7 +57,7 @@ def save_surface_points_per_grid_cell(point_sample_dir, npz_filename, grid_resol
             (scaled_positions[:, 1] < y_high) &
             (scaled_positions[:, 2] > z_low) &
             (scaled_positions[:, 2] < z_high)
-        ] # M x 3, M can be 0 if no surface points are in this grid cell
+        ]  # M x 3, M can be 0 if no surface points are in this grid cell
         print(surface_points_in_cell.shape[0])
 
         # store the remaining surface points
@@ -66,12 +67,17 @@ def save_surface_points_per_grid_cell(point_sample_dir, npz_filename, grid_resol
             # save point cloud PLY for visualization
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(surface_points_in_cell)
-            o3d.io.write_point_cloud(f"{point_sample_dir}/cell{grid_idx}.ply", pcd)
-            print(f"saved surface point cloud at {point_sample_dir}/cell{grid_idx}.ply")
+            o3d.io.write_point_cloud(
+                f"{point_sample_dir}/cell{grid_idx}.ply", pcd)
+            print(
+                f"saved surface point cloud at {point_sample_dir}/cell{grid_idx}.ply")
 
     # save the map
-    np.savez(f"{point_sample_dir}/grid_ids_to_surface_points.npz", *grid_cell_ID_to_surface_samples) # unpack the arrays into arguments
-    print(f"saved grid-cell-to-surface-points mapping at {point_sample_dir}/grid_ids_to_surface_points.npz")
+    np.savez(f"{point_sample_dir}/grid_ids_to_surface_points.npz", *
+             grid_cell_ID_to_surface_samples)  # unpack the arrays into arguments
+    print(
+        f"saved grid-cell-to-surface-points mapping at {point_sample_dir}/grid_ids_to_surface_points.npz")
+
 
 save_surface_points_per_grid_cell("sdf_data/cuboid", "surface_points.npz", 5)
 # surface_points = np.load("sdf_data/cuboid/grid_ids_to_surface_points.npz")
