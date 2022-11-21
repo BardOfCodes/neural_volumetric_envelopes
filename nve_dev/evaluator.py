@@ -7,7 +7,8 @@ Evaluator:
 ## Eventually we can branch it out if need be.
 """
 
+
 class Evaluator():
-    
+
     def __init__(self, eval_config):
         pass
