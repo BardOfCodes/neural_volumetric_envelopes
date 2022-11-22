@@ -13,18 +13,24 @@ import pickle
 
 
 
-def save_surface_points_per_grid_cell(point_sample_dir, surface_points_filename, training_points_filename, grid_resolution, save_point_clouds=False):
+def save_envelope_pickle_data(point_sample_dir, surface_points_filename, training_points_filename, grid_resolution, save_point_clouds=False):
     """
-    Given a filepath to a NPZ file containing 3D sample points on the mesh's surface, saves a map 
-    from grid cell IDs to sets (numpy matrices) containing on-surface points. Each grid cell that contains a zero-crossing (surface)
-    is mapped to a single kx3 matrix of k 3D points on the surface in that cell. k varies depending on the area of the surface in the cell
+    Given filepaths to NPZ files containing 3D sample points on the mesh's surface and training samples near the surface, saves a map 
+    from envelope (grid cell) IDs to numpy matrices containing all the data for that envelope. 
 
     Note that cells are ordered in row-major order, i.e. with the formula: ID = x + y*grid_len + z*grid_len^2. The query points are in the bounding cube [-1,1]^3
 
     Example usage of this function and its saved npz file:
-        save_surface_points_per_grid_cell("sdf_data/cuboid", "surface_points.npz", 5)
-        surface_points = np.load("sdf_data/cuboid/grid_ids_to_surface_points.npz")
-        print(surface_points["arr_117"]) # this retrieves the surface points at cell 118 as a Nx3 numpy matrix
+        
+    save_envelope_pickle_data("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
+
+    with open('sdf_data/cuboid/cuboid_envelopes.pkl', 'rb') as f:
+        loaded_dict = pickle.load(f)
+        for envelope_id, envelope_data in loaded_dict.items():
+            print(envelope_id)
+            print(envelope_data["surface_points"].shape)
+            print(envelope_data["training_points"].shape)
+            print(envelope_data["sdf_vals_in_cell"].shape)
 
     Args:
         - point_sample_dir: relative path to the directory containing this shape's 3D data. e.g. "sdf_data/cuboid"
@@ -33,6 +39,7 @@ def save_surface_points_per_grid_cell(point_sample_dir, surface_points_filename,
         - training_points_filename: same as above, but should contain sample points for training and their corresponding ground truth signed distance values. 
         - grid_resolution: resolution of the imaginary voxel grid that subdivides the normalized space containing the shape and its SDF samples. 
             NOTE: this should be the side length of the grid, not the number of vertices per edge of the grid
+        - save_point_clouds: if True, a point cloud (.ply) will be saved to the same directory as the npz data for each envelope.
 
     Returns: Nothing. Saves the grid cell->{k points} map to disk in the same directory as sdf filepath under the name "(...)/grid_cells_to_surface_points
 
@@ -127,7 +134,7 @@ def save_surface_points_per_grid_cell(point_sample_dir, surface_points_filename,
         pickle.dump(envelope_ID_to_data, f)
 
 
-save_surface_points_per_grid_cell("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
+save_envelope_pickle_data("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
 
 with open('sdf_data/cuboid/cuboid_envelopes.pkl', 'rb') as f:
     loaded_dict = pickle.load(f)
