@@ -119,7 +119,7 @@ def save_envelope_pickle_data(point_sample_dir, surface_points_filename, trainin
         # store the remaining surface points
         envelope_ID_to_data[f"envelope_{envelope_idx}"]["surface_points"] = surface_points_in_cell
         envelope_ID_to_data[f"envelope_{envelope_idx}"]["training_points"] = training_points_in_cell
-        envelope_ID_to_data[f"envelope_{envelope_idx}"]["sdf_vals_in_cell"] = sdf_vals_in_cell
+        envelope_ID_to_data[f"envelope_{envelope_idx}"]["gt_distances"] = sdf_vals_in_cell
 
 
         if save_point_clouds and surface_points_in_cell.shape[0] > 0:
@@ -142,4 +142,4 @@ with open('sdf_data/cuboid/cuboid_envelopes.pkl', 'rb') as f:
         print(envelope_id)
         print(envelope_data["surface_points"].shape)
         print(envelope_data["training_points"].shape)
-        print(envelope_data["sdf_vals_in_cell"].shape)
+        print(envelope_data["gt_distances"].shape)
