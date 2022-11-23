@@ -54,7 +54,7 @@ class STNkd(nn.Module):
 
 
 class PointNetfeat(nn.Module):
-    def __init__(self, input_dim, global_feat=True, feature_transform=False):
+    def __init__(self, input_dim, global_feat=False, feature_transform=False):
         super(PointNetfeat, self).__init__()
         self.stn = STNkd(input_dim=input_dim)
 

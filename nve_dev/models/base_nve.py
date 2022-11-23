@@ -20,24 +20,24 @@ class NVEModel(nn.Module):
         # Add Flatten
         self.flatten = nn.Flatten()
 
-    def forward(self, envelope):
+    def forward(self, input_data):
         # B X D
-        input_obj = envelope['input_obj']
+        input_obj = input_data['surface_points']
         # B X 8 X L
-        feats = self.e2f.forward(input_obj)
+        pointnet_output = self.e2f.forward(input_obj)
+        feats = pointnet_output[0]
         # Expand the features for point prediction
-        target_points = envelope['target_points']
+        training_points = input_data['training_points']
         expanded_features = []
-        for ind, cur_points in enumerate(target_points):
-            expanded_feature = feats[ind: ind +
-                                     1].expand(cur_points.shape[0], -1)
+        for ind, cur_points in enumerate(training_points):
+            expanded_feature = feats[ind: ind + 1].expand(cur_points.shape[0], -1, -1)
             expanded_features.append(expanded_feature)
         # B(E) X 8 X L
-        expanded_features = th.cat(expanded_features[0])
+        expanded_features = th.cat(expanded_features, 0)
         # B(E) X 3
-        target_points = th.cat(target_points, 0)
+        training_points = th.cat(training_points, 0)
         # Flatten and cat
-        flattened_input = self.flatten(expanded_feature)
-        f2p_input = th.cat(flattened_input, target_points, 1)
+        flattened_input = self.flatten(expanded_features)
+        f2p_input = th.cat([flattened_input, training_points], 1)
         pred_values = self.f2p.forward(f2p_input)
         return pred_values

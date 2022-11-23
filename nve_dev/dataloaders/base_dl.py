@@ -12,7 +12,8 @@ class EnvelopeDataset(th.utils.data.Dataset):
     
     def __init__(self, dataset_config):
         
-        self.path = dataset_config.PATH        
+        self.path = dataset_config.PATH   
+        self.n_surface_points = dataset_config.N_SURFACE_POINTS
         
         self.min_surface_points = float("inf")
         self.max_surface_points = -1
@@ -40,12 +41,24 @@ class EnvelopeDataset(th.utils.data.Dataset):
                 
                 self.num_envelopes += 1
         
+        # Adding multiple data workers compatability
+        self.start = 0
+        self.end = self.num_envelopes
+
+        print("Envelope Dataset Intialized w/", self.num_envelopes, "envelopes")
+        print("Max/Min Number of Surface Points:", self.max_surface_points, self.min_surface_points)
+        print("Max/Min Number of Training Points:", self.max_training_points, self.min_training_points)
+
+        self.load_points(loaded_dict)
+        
+        
+    def load_points(self, loaded_dict):        
         # TODO: Add information on envelopes vertices; Needs to be incorporated in .pkl
         # TODO: Other surface point padding options: Random Sample, Surface point mask
 
-        self.surface_points = np.zeros((self.num_envelopes, self.max_surface_points, 3))
-        self.training_points = np.zeros((self.num_envelopes, self.max_training_points, 3))
-        self.gt_distances = self.loss_masks = np.zeros((self.num_envelopes, self.max_training_points, 1))
+        self.surface_points = np.zeros((self.num_envelopes, self.max_surface_points, 3), dtype=np.float32)
+        self.training_points = np.zeros((self.num_envelopes, self.max_training_points, 3), dtype=np.float32)
+        self.gt_distances = self.loss_masks = np.zeros((self.num_envelopes, self.max_training_points, 1), dtype=np.int32)
 
         idx = 0
         for _, envelope_data in loaded_dict.items() :
@@ -61,21 +74,19 @@ class EnvelopeDataset(th.utils.data.Dataset):
             
             idx += 1
 
-        # Adding multiple data workers compatability
-        self.start = 0
-        self.end = self.num_envelopes
-
-        print("Envelope Dataset Intialized w/", self.num_envelopes, "envelopes")
-        print("Max/Min Number of Surface Points:", self.max_surface_points, self.min_surface_points)
-        print("Max/Min Number of Training Points:", self.max_training_points, self.min_training_points)
-
     def __len__(self):
         return self.num_envelopes
     
     def __getitem__(self, idx):
         # loss_mask represents the valid indices in training_points/gt_distances
-        return self.surface_points[idx], self.training_points[idx], self.gt_distances[idx], self.loss_masks[idx]
-
+        input_data = {
+            "surface_points": self.surface_points[idx], 
+            "training_points": self.training_points[idx], 
+            "gt_distances": self.gt_distances[idx], 
+            "loss_masks": self.loss_masks[idx]
+        }
+        return input_data
+    
 # Example from https://pytorch.org/docs/stable/data.html#torch.utils.data.IterableDataset
 def worker_init_fn(worker_id):
     worker_info = th.utils.data.get_worker_info()
