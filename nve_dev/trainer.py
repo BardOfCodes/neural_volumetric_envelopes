@@ -118,8 +118,6 @@ class Trainer():
         stats_dict_it = train_state.get_state_stats()
         if train_state.n_steps % self.log_interval == 0:
 
-            for k, v in stats_dict.items():
-                self.logger.record(f"Train/{k}", v)
+            self.logger.log(stats_dict, train_state.n_steps)
 
-            for k, v in stats_dict_it.items():
-                self.logger.record(f"Train/{k}", v)
+            self.logger.log(stats_dict_it, train_state.n_steps)
