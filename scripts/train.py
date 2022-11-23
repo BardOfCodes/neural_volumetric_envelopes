@@ -15,7 +15,7 @@ def main():
 
     # Instantiate Model, optimizer
     model = NVEModel(config.MODEL)
-    optimizer = th.optim.Adam(model.paramters(), lr=config.OPT.LR)
+    optimizer = th.optim.Adam(model.parameters(), lr=config.OPT.LR)
 
     # Instantiate DataLoader
     dataset = EnvelopeDataset(config.DATASET)

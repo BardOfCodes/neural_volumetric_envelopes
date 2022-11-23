@@ -8,9 +8,9 @@ from .base_e2f import PointNetLatent
 from .base_f2p import FeatureToPoint
 
 
-class NVEModel(nn.modules):
+class NVEModel(nn.Module):
     def __init__(self, model_config):
-
+        super(NVEModel, self).__init__()
         self.e2f = PointNetLatent(model_config.E2F.INPUT_DIM, model_config.E2F.NUM_LATENTS,
                                   model_config.E2F.LATENT_DIM, feature_transform=False, normalize_latents=False)
 

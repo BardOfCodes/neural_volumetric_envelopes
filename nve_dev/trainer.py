@@ -8,15 +8,15 @@ A Trainer class, which:
 ## Eventually we can branch it out if need be.
 """
 
-from logger import WandbLogger
+from .utils.logger import WandbLogger
 from datetime import datetime
 
 class Trainer():
     
     def __init__(self, train_config):
         # Instantiate logger.
-        #TODO(Aditya\Michael): We probably want to set experiment name in the config, I'm using the current time for now.
-        exp_name = date_time.now().strftime("Exp: %m/%d/%Y-%H:%M:%S")
+        datetime_tag = datetime.now().strftime("Exp: %m/%d/%Y-%H:%M:%S")
+        exp_name = "_".join([train_config.EXP_NAME, datetime_tag])
         # Train config is expected to be a Python dictionary {param: value}
         self.logger = WandbLogger(project_name='NVE', entity='csci2951-i', exp_name=exp_name, train_config=train_config)
         # Also train state

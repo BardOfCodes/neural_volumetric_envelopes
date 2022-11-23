@@ -12,8 +12,7 @@ class EnvelopeDataset(th.utils.data.Dataset):
     
     def __init__(self, dataset_config):
         
-        # self.path = dataset_config.PATH
-        self.path = "../../sdf_data/cuboid/cuboid_envelopes.pkl"        
+        self.path = dataset_config.PATH        
         
         self.min_surface_points = float("inf")
         self.max_surface_points = -1

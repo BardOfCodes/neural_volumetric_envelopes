@@ -1,5 +1,4 @@
 from yacs.config import CfgNode as CN
 
 config = CN()
-
-config.BATCH_SIZE = 2048
+config.PATH = "../../data/nve/sdf_data/cuboid/cuboid_envelopes.pkl"
