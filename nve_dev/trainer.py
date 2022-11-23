@@ -8,15 +8,22 @@ A Trainer class, which:
 ## Eventually we can branch it out if need be.
 """
 
+from logger import WandbLogger
+from datetime import datetime
+
 class Trainer():
     
     def __init__(self, train_config):
-        pass
         # Instantiate logger.
+        #TODO(Aditya\Michael): We probably want to set experiment name in the config, I'm using the current time for now.
+        exp_name = date_time.now().strftime("Exp: %m/%d/%Y-%H:%M:%S")
+        # Train config is expected to be a Python dictionary {param: value}
+        self.logger = WandbLogger(project_name='NVE', entity='csci2951-i', exp_name=exp_name, train_config=train_config)
         # Also train state
     
     def train(self, train_settings):
         
+        self.logger.watch(model)
         model.train()
         for epoch in range(n_epochs):
             
@@ -25,7 +32,7 @@ class Trainer():
                 input_data = format_data(batch)
                 loss = self.calculate_loss(model, input_data)
                 
-                
+                self.logger.log(metrics={"loss": loss}, step=iteration_ind)
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 optimizer.step()
@@ -41,6 +48,7 @@ class Trainer():
         
         if (epoch + 1) % save_iter == 0:
             self.checkpoint()
+            self.logger.log_model(model, step=iteration_ind)
 
 
 
