@@ -9,7 +9,7 @@ n_surface_points = 1024
 
 cfg.MACHINE_SPEC = CN()
 ## USE ALIAS/LINKS
-cfg.MACHINE_SPEC.DATA_DIR = "data/nve/sdf_data/cuboid/cuboid_envelopes.pkl"
+cfg.MACHINE_SPEC.DATA_DIR = "../data/nve/sdf_data/cuboid/cuboid_envelopes.pkl"
 cfg.MACHINE_SPEC.SAVE_DIR = "weights/" + cfg.EXP_NAME
 cfg.MACHINE_SPEC.LOG_DIR = "logs/" + cfg.EXP_NAME
 
@@ -25,7 +25,7 @@ cfg.DATASET.N_SURFACE_POINTS = n_surface_points
 
 cfg.DATALOADER = CN()
 cfg.DATALOADER.BATCH_SIZE = 16
-cfg.DATALOADER.NUM_WORKERS = 2
+cfg.DATALOADER.NUM_WORKERS = 0
 
 cfg.TRAINER = CN()
 cfg.TRAINER.EXP_NAME = cfg.EXP_NAME

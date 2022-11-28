@@ -3,7 +3,7 @@ from yacs.config import CfgNode as CN
 config = CN()
 
 config.E2F = CN()
-config.E2F.INPUT_DIM = None # Set from Baseline.py
+config.E2F.INPUT_DIM = 1024 # Set from Baseline.py
 config.E2F.NUM_LATENTS = 8
 config.E2F.LATENT_DIM = 128
 
