@@ -3,13 +3,37 @@ import open3d as o3d
 from collections import defaultdict
 import pickle
 
-# TODO:
-# convert world space to local grid cell space for each cell (origin at x_low, y_low, z_low)
-# -.5 to .5 in each cell: shift + scale points, only scale SDF
-# omit non-surface envelopes
 
-# visualize local training + surface samples as point cloud 
+def get_surface_normals(mesh_filepath, surface_points):
+    """
+    
+    Args:
+        - surface_points: Nx3 numpy array of points on the mesh's surface, 
+    Returns: 
+        - Nx3 numpy array of surface normals
+    """
+    # make PointCloud object from vertices (with known normals) of the mesh
+    mesh = o3d.io.read_triangle_mesh(mesh_filepath)
+    mesh.compute_vertex_normals()
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(np.asarray(mesh.vertices) + 0.5)  # convert mesh from [-0.5, 0.5]^3 to [0,1]^3 to be consistent with surface-points
+    pcd.normals = mesh.vertex_normals
+    # print(np.asarray(pcd.normals))
+    # build KDTree from point cloud
+    kdtree = o3d.geometry.KDTreeFlann(pcd)
 
+    # for each query, find k-nearest neighboring mesh vertices from the point cloud
+    k, nearest_idx, dists = kdtree.search_knn_vector_3d(surface_points[0], 2) 
+    print(nearest_idx)
+    print(np.asarray(nearest_idx).shape)
+    print(dists)
+    print(np.asarray(dists).shape)
+    print(k)
+    exit()
+
+    # get their normals
+    neighbor_normals = pcd.normals[nearest_idx]
+    # for each query, interpolate the vertex normals of the kNN
 
 
 
@@ -134,12 +158,14 @@ def save_envelope_pickle_data(point_sample_dir, surface_points_filename, trainin
         pickle.dump(envelope_ID_to_data, f)
 
 
-save_envelope_pickle_data("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
+get_surface_normals("sdf_data/cuboid/model.obj", np.load("sdf_data/cuboid/surface_points.npz")['surface_points'])
 
-with open('sdf_data/cuboid/cuboid_envelopes.pkl', 'rb') as f:
-    loaded_dict = pickle.load(f)
-    for envelope_id, envelope_data in loaded_dict.items():
-        print(envelope_id)
-        print(envelope_data["surface_points"].shape)
-        print(envelope_data["training_points"].shape)
-        print(envelope_data["gt_distances"].shape)
+# save_envelope_pickle_data("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
+
+# with open('sdf_data/cuboid/cuboid_envelopes.pkl', 'rb') as f:
+#     loaded_dict = pickle.load(f)
+#     for envelope_id, envelope_data in loaded_dict.items():
+#         print(envelope_id)
+#         print(envelope_data["surface_points"].shape)
+#         print(envelope_data["training_points"].shape)
+#         print(envelope_data["gt_distances"].shape)
