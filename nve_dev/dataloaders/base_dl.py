@@ -21,15 +21,27 @@ class EnvelopeDataset(th.utils.data.Dataset):
         self.max_training_points = -1
 
         self.num_envelopes = 0
-        # Map from envelope_id in .pkl file -> id in EnvelopeDataset, useful for final visulization
-        self.id_to_envelope_id : Dict[int, str] = {}
-        self.envelope_id_to_id : Dict[str, int] = {}
+
+        # Represents 4/8 vertices for envelope; used for visualization
+        self.envelope_vertices : List[np.array] = []
+
 
         with open(self.path, "rb") as f :
             loaded_dict = pickle.load(f)
+
+            self.grid_resolution = 8 # Hard coded for now, replace below
+
+            # TODO: Marc/Anh Parse Grid Resolution from .pkl file - the code below should work just need to coordinate the .pkl file design
+            # if "grid_resolution" in loaded_dict :
+            #     self.grid_resolution = loaded_dict["grid_resolution"]
+            # else :
+            #     raise KeyError(self.path + "does not contain grid_resolution key")
+
             for envelope_id, envelope_data in loaded_dict.items() :
-                self.id_to_envelope_id[self.num_envelopes] = envelope_id
-                self.envelope_id_to_id[envelope_id] = self.num_envelopes
+                grid_idx = envelope_id.split('_')[-1]
+                grid_idx = int(grid_idx)
+
+                self.envelope_vertices.append(self.compute_cuboid_vertices(grid_idx))
 
                 num_surface_points = envelope_data["surface_points"].shape[0]
                 self.min_surface_points = min(self.min_surface_points, num_surface_points)
@@ -51,6 +63,29 @@ class EnvelopeDataset(th.utils.data.Dataset):
 
         self.load_points(loaded_dict)
         
+    def compute_cuboid_vertices(self, grid_idx):
+        x_min = float(grid_idx % self.grid_resolution)
+        x_max = x_min + 1.0
+        y_min = float((grid_idx // self.grid_resolution) % self.grid_resolution)
+        y_max = y_min + 1.0
+        z_min = float((grid_idx // (self.grid_resolution**2)) % self.grid_resolution)
+        z_max = z_min + 1.0
+
+        vertices = [
+            [x_min, y_min, z_min],
+            [x_min, y_max, z_min],
+            [x_min, y_min, z_max],
+            [x_min, y_max, z_max],
+            [x_max, y_min, z_min],
+            [x_max, y_max, z_min],
+            [x_max, y_min, z_max],
+            [x_max, y_max, z_max],
+        ]
+
+        vertices = np.array(vertices)
+        # print("Vertices", x_min, x_max, y_min, y_max, z_min, z_max)
+        
+        return vertices
         
     def load_points(self, loaded_dict):        
         # TODO: Add information on envelopes vertices; Needs to be incorporated in .pkl
@@ -83,7 +118,8 @@ class EnvelopeDataset(th.utils.data.Dataset):
             "surface_points": self.surface_points[idx], 
             "training_points": self.training_points[idx], 
             "gt_distances": self.gt_distances[idx], 
-            "loss_masks": self.loss_masks[idx]
+            "loss_masks": self.loss_masks[idx],
+            "envelope_vertices" : self.envelope_vertices[idx],
         }
         return input_data
     

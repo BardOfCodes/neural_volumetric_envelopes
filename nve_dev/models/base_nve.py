@@ -8,7 +8,7 @@ from .base_e2f import PointNetLatent
 from .base_f2p import FeatureToPoint
 
 
-class NVEModel(nn.Module):
+class NVEModel(nn.Module): 
     def __init__(self, model_config):
         super(NVEModel, self).__init__()
         self.e2f = PointNetLatent(model_config.E2F.INPUT_DIM, model_config.E2F.NUM_LATENTS,
@@ -20,9 +20,37 @@ class NVEModel(nn.Module):
         # Add Flatten
         self.flatten = nn.Flatten()
 
+    # Helper function for visualization; Forward pass to predict sdf
+    # sdf points, N x 3 
+    # surface points, B X D
+    @th.no_grad()
+    def predict_sdf(self, sdf_points, surface_points) :  
+        # TODO: Double check this logic
+        # B X 8 X L
+        pointnet_output = self.e2f.forward(surface_points)
+        feats = pointnet_output[0]
+        
+        # Expand the features for point prediction
+        
+        expanded_features = []
+        sdf_points = [sdf_points]
+        for ind, cur_points in enumerate(sdf_points):
+            expanded_feature = feats[ind: ind + 1].expand(cur_points.shape[0], -1, -1)
+            expanded_features.append(expanded_feature)
+        # B(E) X 8 X L
+        expanded_features = th.cat(expanded_features, 0)
+        # B(E) X 3
+        sdf_points = th.cat(sdf_points, 0)
+        # Flatten and cat
+        flattened_input = self.flatten(expanded_features)
+        f2p_input = th.cat([flattened_input, sdf_points], 1)
+        pred_values = self.f2p.forward(f2p_input)
+        return pred_values
+    
     def forward(self, input_data):
         # B X D
         input_obj = input_data['surface_points']
+        
         # B X 8 X L
         pointnet_output = self.e2f.forward(input_obj)
         feats = pointnet_output[0]

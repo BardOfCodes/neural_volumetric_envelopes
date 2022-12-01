@@ -9,13 +9,14 @@
 from typing import List
 import numpy as np
 import random
-from sdf import sdf
+from .sdf import sdf 
 import os
+import torch
 
 class Cuboid :
 
     def __init__(self, vertices) -> None:
-        assert(vertices.shape == (8, 3))
+        assert(vertices.shape == (8, 3)) , vertices.shape
 
         self.vertices = vertices
 
@@ -27,10 +28,11 @@ class Cuboid :
 
         edge = vertices[x_mask & y_mask]
         assert(edge.shape == (2, 3))
-        self.side_length = abs(edge[0, 2] - edge[1,2]) 
+        self.side_length = np.array(abs(edge[0, 2] - edge[1,2]))
 
         # Compute center
-        self.centroid = vertices.sum(axis = 0) / 8.0
+        self.centroid = np.array(vertices.sum(axis = 0) / 8.0)
+        # print("Centroid debugging", self.centroid, self.side_length)
 
         # Compute bounds
         self.x_min = vertices[:, 0].min()
@@ -69,15 +71,12 @@ class Cuboid :
 
         return points
 
-def save_mesh(cuboids : List[np.array], output_directory = "../../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22) :
+def save_mesh(cuboids : List[Cuboid], output_directory = "../../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22) :
     vertices = []
     
     for cuboid in cuboids :
         # Create neuralSDF function with params
-        
-        # TODO: Update sdf/sdf/d3.py to neural network
-        params = {} 
-        f = sdf.neuralSDF(params = params)
+        f = sdf.sphere(radius=0.5)
 
         # Compute list of mesh triangle vertices. (P1 P2 P3)
         points = f.generate(samples=num_samples_per_envelope)
@@ -99,6 +98,43 @@ def save_mesh(cuboids : List[np.array], output_directory = "../../results/mesh_s
 
     sdf.write_binary_stl(file_path, vertices)
     print("Saved mesh to", file_path)
+
+# TODO: Delete save_mesh; save_mesh_V2 is neural network version, but I'm keeping
+#       save_mesh as a reference that worked previously
+def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22) :
+    vertices = []        
+
+    for idx, batch in enumerate(dataloader) :
+        print(idx)
+        cuboid = Cuboid(torch.squeeze(batch["envelope_vertices"]).cpu())
+
+        # f = sdf.sphere(radius=0.5)
+        f = sdf.neuralSDF(model, batch['surface_points'])
+
+        # Compute list of mesh triangle vertices. (P1 P2 P3)
+        points = f.generate(samples=num_samples_per_envelope, bounds = ((-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)), sparse = False)
+
+        # Transform vertices from envelope_space to world_space, and store  
+        if len(points) > 0 :
+            points = np.array(points)
+            world_space_points = cuboid.envelope_to_world(points)
+            
+            world_space_points = [world_space_points[i] for i in range(len(points))]
+
+            vertices.extend(world_space_points)
+        else :
+            print("No triangles found")
+
+    # Convert all list of triangles -> .stl file (using library's write_binary)
+    os.makedirs(output_directory , exist_ok = True) 
+    if not file_name.endswith('.stl') :
+        file_name = file_name + ".stl"
+
+    file_path = os.path.join(output_directory, file_name)
+
+    sdf.write_binary_stl(file_path, vertices)
+    print("Saved mesh to", file_path)
+    print("Number of triangles", len(vertices) // 3)
 
 
 if __name__ == '__main__':

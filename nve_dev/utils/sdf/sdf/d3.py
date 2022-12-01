@@ -1,6 +1,7 @@
 import functools
 import numpy as np
 import operator
+import torch
 
 from . import dn, d2, ease, mesh
 
@@ -89,18 +90,24 @@ _max = np.maximum
 # Neural
 
 @sdf3
-def neuralSDF(params = None) :
-    
-    # TODO: Replace sphere placeholder w/ neural network
-    # Params will include:
-    # 1) Decoder Network w/ trained weights + config (cuboid, tet, etc.)
-    # 2) Latent Codes
-
+def neuralSDF(model, surface_points) :
     # Inputs (n, 3) Outputs (n, 1)
-    radius = 0.5
-    center = ORIGIN
+    
+    # Example sphere
+    # radius = 0.5
+    # center = ORIGIN
+    # def f(p):
+    #     return _length(p - center) - radius
+
+    surface_points = surface_points.cuda()
+
     def f(p):
-        return _length(p - center) - radius
+        p = torch.tensor(p, device = "cuda", dtype=torch.float32)
+        output = model.predict_sdf(p, surface_points)
+        output = output.cpu().detach()
+        output = np.array(output)
+        return output
+
     return f
 
 # Primitives

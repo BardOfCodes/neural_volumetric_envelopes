@@ -26,10 +26,15 @@ class NoMaskDataset(EnvelopeDataset):
         self.gt_distances = []
         idx = 0
         for _, envelope_data in loaded_dict.items():
-            # Currently padding with first surface points
+            # Subsample self.n_surface_points
             sp = envelope_data["surface_points"]
-            sel_index = np.arange(0, sp.shape[0])
-            sel_index = np.random.choice(sel_index, size=self.n_surface_points)
+            
+            # TODO: Revert to random sel_index with set seed for consistency across training/visualization
+            # sel_index = np.arange(0, sp.shape[0])
+            # sel_index = np.random.choice(sel_index, size=self.n_surface_points)
+            
+            sel_index = np.arange(0, self.n_surface_points) 
+            
             self.surface_points[idx] = sp[sel_index]
             self.training_points.append(envelope_data["training_points"].astype(np.float32))
             self.gt_distances.append(envelope_data["gt_distances"].astype(np.float32))
@@ -43,6 +48,7 @@ class NoMaskDataset(EnvelopeDataset):
             "surface_points": self.surface_points[idx],
             "training_points": self.training_points[idx],
             "gt_distances": self.gt_distances[idx],
+            "envelope_vertices" : self.envelope_vertices[idx],
         }
         return input_data
 
