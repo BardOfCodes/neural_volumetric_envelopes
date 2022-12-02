@@ -14,7 +14,7 @@ from .train_state import TrainState
 from datetime import datetime
 import torch as th
 from pathlib import Path
-import os 
+import os
 from .models.base_e2f import feature_transform_regularizer
 
 class Trainer():
@@ -24,8 +24,8 @@ class Trainer():
         datetime_tag = datetime.now().strftime("Exp: %m/%d/%Y-%H:%M:%S")
         exp_name = "_".join([train_config.EXP_NAME, datetime_tag])
         # Train config is expected to be a Python dictionary {param: value}
-        # self.logger = WandbLogger(
-            # project_name='NVE', entity='csci2951-i', exp_name=exp_name, train_config=train_config)
+        self.logger = WandbLogger(
+            project_name='NVE', entity='csci2951-i', exp_name=exp_name, train_config=train_config)
 
         # Hyps
         self.feature_transform_weight = train_config.FEATURE_TRANSFORM_WEIGHT
@@ -53,7 +53,7 @@ class Trainer():
             model, optimizer, train_state = load_all_weights(
                 model, optimizer, train_state, self.init_model_path)
 
-        # self.logger.watch(model)
+        self.logger.watch(model)
         model.train()
 
         for epoch in range(train_state.cur_epoch, self.n_epochs):
@@ -67,7 +67,7 @@ class Trainer():
                 optimizer.step()
 
                 train_state.n_steps += 1
-                # self.log_training_details(stats_dict, train_state)
+                self.log_training_details(stats_dict, train_state)
             # Epoch level log?
 
             if (epoch + 1) % self.eval_epoch == 0:
@@ -104,12 +104,11 @@ class Trainer():
             feature_transform_loss = feature_transform_regularizer(trans_feat)
 
         loss = mse_loss + feature_transform_loss * self.feature_transform_weight
-        # print("mse", mse_loss, feature_transform_loss)
+        print("mse", mse_loss, feature_transform_loss)
 
         stats_dict = dict(
             loss=loss.item(),
             mse_loss=mse_loss.item(),
-            l2_loss = l2_loss.item()
         )
         return loss, stats_dict
 
