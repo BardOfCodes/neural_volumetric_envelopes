@@ -109,6 +109,7 @@ class Trainer():
         stats_dict = dict(
             loss=loss.item(),
             mse_loss=mse_loss.item(),
+            l2_loss = l2_loss.item()
         )
         return loss, stats_dict
 

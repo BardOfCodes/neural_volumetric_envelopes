@@ -40,6 +40,9 @@ class NoMaskDataset(EnvelopeDataset):
             self.gt_distances.append(envelope_data["gt_distances"].astype(np.float32))
 
             idx += 1
+            # if idx == 4 :
+                    # break
+        
 
     def __getitem__(self, idx):
         # loss_mask represents the valid indices in training_points/gt_distances
@@ -71,7 +74,7 @@ def no_mask_collate(batch, device="cuda"):
     batch = {
         "surface_points": surface_points,
         "training_points": training_points,
-        "gt_distances": gt_distances
+        "gt_distances": gt_distances,
     }
     return batch
 

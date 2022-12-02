@@ -25,7 +25,6 @@ class EnvelopeDataset(th.utils.data.Dataset):
         # Represents 4/8 vertices for envelope; used for visualization
         self.envelope_vertices : List[np.array] = []
 
-
         with open(self.path, "rb") as f :
             loaded_dict = pickle.load(f)
 
@@ -38,6 +37,7 @@ class EnvelopeDataset(th.utils.data.Dataset):
             #     raise KeyError(self.path + "does not contain grid_resolution key")
 
             for envelope_id, envelope_data in loaded_dict.items() :
+                print("envelope id", envelope_id)
                 grid_idx = envelope_id.split('_')[-1]
                 grid_idx = int(grid_idx)
 
@@ -52,6 +52,8 @@ class EnvelopeDataset(th.utils.data.Dataset):
                 self.max_training_points = max(self.max_training_points, num_training_points)
                 
                 self.num_envelopes += 1
+                # if self.num_envelopes == 4 :
+                    # break
         
         # Adding multiple data workers compatability
         self.start = 0
