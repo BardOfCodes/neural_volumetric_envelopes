@@ -12,28 +12,32 @@ def get_surface_normals(mesh_filepath, surface_points):
     Returns: 
         - Nx3 numpy array of surface normals
     """
+    output_normals = np.zeros_like(surface_points)
+
     # make PointCloud object from vertices (with known normals) of the mesh
     mesh = o3d.io.read_triangle_mesh(mesh_filepath)
     mesh.compute_vertex_normals()
     pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(np.asarray(mesh.vertices) + 0.5)  # convert mesh from [-0.5, 0.5]^3 to [0,1]^3 to be consistent with surface-points
+    pcd.points = o3d.utility.Vector3dVector(np.asarray(mesh.vertices) + 0.5)  # convert mesh from [-0.5, 0.5]^3 to [0,1]^3 to be consistent with space of surface points
     pcd.normals = mesh.vertex_normals
     # print(np.asarray(pcd.normals))
     # build KDTree from point cloud
     kdtree = o3d.geometry.KDTreeFlann(pcd)
 
-    # for each query, find k-nearest neighboring mesh vertices from the point cloud
-    k, nearest_idx, dists = kdtree.search_knn_vector_3d(surface_points[0], 2) 
-    print(nearest_idx)
-    print(np.asarray(nearest_idx).shape)
-    print(dists)
-    print(np.asarray(dists).shape)
-    print(k)
-    exit()
+    # for each query, find k-nearest neighboring mesh vertices from the point cloud (not sure how to parallize with open3d)
+    all_normals = np.asarray(pcd.normals)
+    for i in range(surface_points.shape[0]):
+        k, knearest_vert_indices, dists = kdtree.search_knn_vector_3d(surface_points[i], 2) 
+        # get normals of knn
+        neighbor_normals = all_normals[np.asarray(knearest_vert_indices)]
+        # print("kn normals: ", neighbor_normals)
+        # print("median normal: ", np.mean(neighbor_normals, axis=0))
+        # interpolate the vertex normals of the kNN (median)
+        output_normals[i] = np.median(neighbor_normals, axis=0)
 
-    # get their normals
-    neighbor_normals = pcd.normals[nearest_idx]
-    # for each query, interpolate the vertex normals of the kNN
+    print(output_normals[:10])
+    return output_normals
+
 
 
 
@@ -72,6 +76,7 @@ def save_envelope_pickle_data(point_sample_dir, surface_points_filename, trainin
     # load all sample points 
     training_sample_points = np.load(f"{point_sample_dir}/{training_points_filename}") # randomly permuted already
     surface_sample_points = np.load(f"{point_sample_dir}/{surface_points_filename}")
+    surface_sample_point_normals = get_surface_normals(f"{point_sample_dir}/model.obj", surface_sample_points['surface_points'])
     # all points are normalized in [0,1]^3
     normalized_surface_points = surface_sample_points['surface_points'] 
     normalized_training_points = training_sample_points['points'] 
@@ -106,6 +111,15 @@ def save_envelope_pickle_data(point_sample_dir, surface_points_filename, trainin
             (scaled_surface_positions[:, 2] < z_high)
         ] # M x 3, M can be 0 if no surface points are in this grid cell
 
+        surface_point_normals_in_cell =  surface_sample_point_normals[
+            (scaled_surface_positions[:, 0] > x_low) &
+            (scaled_surface_positions[:, 0] < x_high) &
+            (scaled_surface_positions[:, 1] > y_low) &
+            (scaled_surface_positions[:, 1] < y_high) &
+            (scaled_surface_positions[:, 2] > z_low) &
+            (scaled_surface_positions[:, 2] < z_high)
+        ]  # M x 3
+
         training_points_in_cell = scaled_training_positions[
             (scaled_training_positions[:, 0] > x_low) &
             (scaled_training_positions[:, 0] < x_high) &
@@ -138,31 +152,33 @@ def save_envelope_pickle_data(point_sample_dir, surface_points_filename, trainin
         surface_points_in_cell = (surface_points_in_cell - np.array((x_low, y_low, z_low))) - 0.5 # reposition unit envelope so that its vertex closest to the origin sits at the origin, then shift form [0,1] to [-0.5,0.5]
         training_points_in_cell = (training_points_in_cell - np.array((x_low, y_low, z_low))) - 0.5  
         # NOTE: GT distance values do NOT need to be shifted since they are translation invariant (i.e. distance to the surface does not change if we re-define the origin)
-        
 
         # store the remaining surface points
         envelope_ID_to_data[f"envelope_{envelope_idx}"]["surface_points"] = surface_points_in_cell
+        envelope_ID_to_data[f"envelope_{envelope_idx}"]["surface_point_normals"] = surface_point_normals_in_cell
         envelope_ID_to_data[f"envelope_{envelope_idx}"]["training_points"] = training_points_in_cell
         envelope_ID_to_data[f"envelope_{envelope_idx}"]["gt_distances"] = sdf_vals_in_cell
+        envelope_ID_to_data[f"envelope_{envelope_idx}"]["grid_resolution"] = grid_resolution
 
 
         if save_point_clouds and surface_points_in_cell.shape[0] > 0:
             # save point cloud PLY for visualization
             pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(training_points_in_cell)
+            pcd.points = o3d.utility.Vector3dVector(surface_points_in_cell)
             o3d.io.write_point_cloud(f"{point_sample_dir}/cell{envelope_idx}.ply", pcd)
             print(f"saved surface point cloud at {point_sample_dir}/cell{envelope_idx}.ply")
+
     print(f"num nonempty: {num_non_empty_envs}")
-    
+
     with open(f'{point_sample_dir}/cuboid_envelopes.pkl',"wb") as f:
         pickle.dump(envelope_ID_to_data, f)
 
 
-get_surface_normals("sdf_data/cuboid/model.obj", np.load("sdf_data/cuboid/surface_points.npz")['surface_points'])
+# get_surface_normals("sdf_data/cuboid/model.obj", np.load("sdf_data/cuboid/surface_points.npz")['surface_points'])
 
-# save_envelope_pickle_data("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
+save_envelope_pickle_data("sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8)
 
-# with open('sdf_data/cuboid/cuboid_envelopes.pkl', 'rb') as f:
+# with open('sdf_data/cuboid/backup_cuboid_envelopes.pkl', 'rb') as f:
 #     loaded_dict = pickle.load(f)
 #     for envelope_id, envelope_data in loaded_dict.items():
 #         print(envelope_id)
