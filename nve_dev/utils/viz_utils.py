@@ -32,7 +32,8 @@ class Cuboid :
 
         # Compute center
         self.centroid = np.array(vertices.sum(axis = 0) / 8.0)
-        # print("Centroid debugging", self.centroid, self.side_length)
+        print("Centroid debugging", self.centroid, self.side_length)
+        
 
         # Compute bounds
         self.x_min = vertices[:, 0].min()
@@ -41,6 +42,8 @@ class Cuboid :
         self.y_max = vertices[:, 1].max()
         self.z_min = vertices[:, 2].min()
         self.z_max = vertices[:, 2].max()
+
+        print("X/Y/Z MIN/MAX", np.array(self.x_min),np.array(self.x_max),np.array(self.y_min),np.array(self.y_max),np.array(self.z_min),np.array(self.z_max))
 
     def envelope_contains_point(self, points) -> bool :
         assert(len(points.shape) == 2 and points.shape[1] == 3)
@@ -68,6 +71,7 @@ class Cuboid :
 
         # Translate to centroid
         points = points + self.centroid
+
 
         return points
 
@@ -101,7 +105,7 @@ def save_mesh(cuboids : List[Cuboid], output_directory = "../../results/mesh_stl
 
 # TODO: Delete save_mesh; save_mesh_V2 is neural network version, but I'm keeping
 #       save_mesh as a reference that worked previously
-def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22) :
+def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.01) :
     vertices = []        
 
     for idx, batch in enumerate(dataloader) :
@@ -112,7 +116,10 @@ def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", fi
         f = sdf.neuralSDF(model, batch['surface_points'])
 
         # Compute list of mesh triangle vertices. (P1 P2 P3)
-        points = f.generate(samples=num_samples_per_envelope, bounds = ((-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)), sparse = False)
+        # I added bound epsilon, so we can get vertices on envelope boundaries (visually might improve connectiosn between envelopes?)
+        min_bound = -0.5 - bound_epsilon
+        max_bound = 0.5 + bound_epsilon
+        points = f.generate(samples=num_samples_per_envelope, bounds = ((min_bound, min_bound, min_bound), (max_bound, max_bound, max_bound)), sparse = False)
 
         # Transform vertices from envelope_space to world_space, and store  
         if len(points) > 0 :
@@ -123,7 +130,8 @@ def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", fi
 
             vertices.extend(world_space_points)
         else :
-            print("No triangles found")
+            print("No triangles found in an envelope")
+            # exit()
 
     # Convert all list of triangles -> .stl file (using library's write_binary)
     os.makedirs(output_directory , exist_ok = True) 

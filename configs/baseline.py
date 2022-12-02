@@ -1,9 +1,9 @@
-from yacs.config import CfgNode as CN 
+from yacs.config import CfgNode as CN
 from configs.subconfigs.nve_model import config as model_config
 from configs.subconfigs.dataset import config as dataset_config 
 cfg = CN()
 
-cfg.EXP_NAME = "debugging-locally-e2f-4-envelopes"
+cfg.EXP_NAME = "debugging-ocally"
 
 n_surface_points = 1024
 
@@ -31,11 +31,11 @@ cfg.TRAINER = CN()
 cfg.TRAINER.EXP_NAME = cfg.EXP_NAME
 cfg.TRAINER.FEATURE_TRANSFORM_WEIGHT = 0.001
 cfg.TRAINER.N_EPOCHS = 150
-cfg.TRAINER.SAVE_EPOCH = 150
-cfg.TRAINER.EVAL_EPOCH = 150
+cfg.TRAINER.SAVE_EPOCH = 50
+cfg.TRAINER.EVAL_EPOCH = 5
 cfg.TRAINER.SAVE_DIR = cfg.MACHINE_SPEC.SAVE_DIR
 cfg.TRAINER.RESUME_CHECKPOINT = True
-cfg.TRAINER.LOG_INTERVAL = 50
+cfg.TRAINER.LOG_INTERVAL = 10
 # For any pretrained weights
 cfg.TRAINER.INIT_WEIGHTS = ""
 
