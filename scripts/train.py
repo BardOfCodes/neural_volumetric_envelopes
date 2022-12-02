@@ -24,7 +24,7 @@ def main():
     # Instantiate Model, optimizer
     model = NVEModel(config.MODEL)
     model.cuda()
-    optimizer = th.optim.Adam(model.parameters(), lr=config.OPT.LR)
+    optimizer = th.optim.AdamW(model.parameters(), lr=config.OPT.LR)
     # TO ADD LR Scheduler
 
     # Instantiate DataLoader

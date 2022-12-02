@@ -34,7 +34,7 @@ def main():
                                           shuffle=False)
     
     # Load model weights
-    model_path = "weights/Baseline_no_weight_penality_lr_0.0003/weights_99.ptpkl" # TODO: put a path, make config or arg
+    model_path = "weights/debugging-locally-e2f-4-envelopes/weights_149.ptpkl" # TODO: put a path, make config or arg
     model, _, _ = load_all_weights(
                 model, 
                 optimizer = None, 
@@ -43,7 +43,7 @@ def main():
                 load_optim = False, 
                 load_train_state = False)
     
-    save_mesh_V2(model, dataloader, file_name = "no_weight_penalty_lr_sparse_bounds_0.5_dense", num_samples_per_envelope = 2**24)
+    save_mesh_V2(model, dataloader, file_name = "debug-locally-4-envelopes", num_samples_per_envelope = 2**18)
     
     print("Visualization Done!")
 
