@@ -7,3 +7,117 @@ A Trainer class, which:
 
 ## Eventually we can branch it out if need be.
 """
+
+from .utils.logger import WandbLogger
+from .utils.train_utils import resume_checkpoint_filename, load_all_weights, save_all_weights
+from .train_state import TrainState
+from datetime import datetime
+import torch as th
+from pathlib import Path
+import os
+
+
+class Trainer():
+
+    def __init__(self, train_config):
+        # Instantiate logger.
+        datetime_tag = datetime.now().strftime("Exp: %m/%d/%Y-%H:%M:%S")
+        exp_name = "_".join([train_config.EXP_NAME, datetime_tag])
+        # Train config is expected to be a Python dictionary {param: value}
+        self.logger = WandbLogger(
+            project_name='NVE', entity='csci2951-i', exp_name=exp_name, train_config=train_config)
+
+        # Hyps
+        self.l2_weight = train_config.L2_WEIGHT
+        self.n_epochs = train_config.N_EPOCHS
+        self.save_epoch = train_config.SAVE_EPOCH
+        self.eval_epoch = train_config.EVAL_EPOCH
+        self.save_dir = train_config.SAVE_DIR
+        self.log_interval = train_config.LOG_INTERVAL
+
+        if train_config.RESUME_CHECKPOINT:
+            Path(self.save_dir).mkdir(parents=True, exist_ok=True)
+            self.init_model_path = resume_checkpoint_filename(self.save_dir)
+            if self.init_model_path is None:
+                self.init_model_path = train_config.INIT_WEIGHTS
+        else:
+            self.init_model_path = train_config.INIT_WEIGHTS
+
+    def train(self, model, optimizer, train_dataloader, eval_dataloader, evaluator):
+
+        # Init train state
+        train_state = TrainState()
+
+        # Should model weight be loaded outside/before train?
+        if self.init_model_path:
+            model, optimizer, train_state = load_all_weights(
+                model, optimizer, train_state, self.init_model_path)
+
+        self.logger.watch(model)
+        model.train()
+
+        for epoch in range(train_state.cur_epoch, self.n_epochs):
+            train_state.cur_epoch = epoch
+            for iteration_ind, batch in enumerate(train_dataloader):
+                loss, stats_dict = self.calculate_loss(model, batch)
+
+                optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                optimizer.step()
+
+                train_state.n_steps += 1
+                self.log_training_details(stats_dict, train_state)
+            # Epoch level log?
+
+            if (epoch + 1) % self.eval_epoch == 0:
+                # perform evaluation
+                model.eval()
+                # TBD: Don't send optimizer etc. 
+                # Save "best Model" in a differnt way.
+                evaluator.evaluate(model, optimizer, train_state, eval_dataloader)
+                model.train()
+                # Set score:
+                train_state.cur_score = evaluator.eval_score
+                if train_state.cur_score > train_state.best_score:
+                    train_state.best_score = train_state.cur_score
+                    train_state.best_epoch = train_state.cur_epoch
+
+            if (epoch + 1) % self.save_epoch == 0:
+                # Commenting this out for now as its unclear 
+                # how to save more than the model with wandb.
+                # Also, should we even store weights through wandb?
+                # I prefer outside of it.
+                # self.logger.log_model(model, step=iteration_ind)
+                save_path = os.path.join(
+                    self.save_dir, "weights_%d.ptpkl" % train_state.cur_epoch)
+                save_all_weights(model, optimizer, train_state, save_path)
+
+    def calculate_loss(self, model, input_data):
+        # Forward and losses
+        pred_values = model.forward(input_data)
+        gt_distances = th.cat(input_data['gt_distances'], 0)
+        mse_loss = th.nn.functional.mse_loss(pred_values, gt_distances)
+
+        l2_norms = [th.sum(th.square(w)) for w in model.parameters()]
+        # divide by 2 to cancel with gradient of square
+        l2_norm = sum(l2_norms) / 2
+
+        l2_loss = self.l2_weight * l2_norm
+        loss = mse_loss + l2_loss
+
+        stats_dict = dict(
+            loss=loss.item(),
+            mse_loss=mse_loss.item(),
+            l2_norm=l2_norm.item(),
+            l2_loss=l2_loss.item(),
+        )
+        return loss, stats_dict
+
+    def log_training_details(self, stats_dict, train_state):
+
+        stats_dict_it = train_state.get_state_stats()
+        if train_state.n_steps % self.log_interval == 0:
+
+            self.logger.log(stats_dict, train_state.n_steps)
+
+            self.logger.log(stats_dict_it, train_state.n_steps)
