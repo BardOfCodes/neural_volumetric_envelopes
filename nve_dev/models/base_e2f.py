@@ -77,7 +77,7 @@ class PointNetfeat(nn.Module):
         self.global_feat = global_feat
         self.feature_transform = feature_transform
         if self.feature_transform:
-            self.fstn = STNkd(k=64)
+            self.fstn = STNkd(input_dim=64)
 
     def forward(self, x):
         n_pts = x.size()[2]
@@ -167,8 +167,6 @@ class PointNetLatent(nn.Module):
         return x, trans, trans_feat
 
 # Regularizer loss for transformation network
-
-
 def feature_transform_regularizer(trans):
     d = trans.size()[1]
     batchsize = trans.size()[0]

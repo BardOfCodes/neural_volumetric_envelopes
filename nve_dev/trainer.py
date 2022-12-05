@@ -15,7 +15,7 @@ from datetime import datetime
 import torch as th
 from pathlib import Path
 import os
-
+from .models.base_e2f import feature_transform_regularizer
 
 class Trainer():
 
@@ -28,7 +28,7 @@ class Trainer():
             project_name='NVE', entity='csci2951-i', exp_name=exp_name, train_config=train_config)
 
         # Hyps
-        self.l2_weight = train_config.L2_WEIGHT
+        self.feature_transform_weight = train_config.FEATURE_TRANSFORM_WEIGHT
         self.n_epochs = train_config.N_EPOCHS
         self.save_epoch = train_config.SAVE_EPOCH
         self.eval_epoch = train_config.EVAL_EPOCH
@@ -57,6 +57,7 @@ class Trainer():
         model.train()
 
         for epoch in range(train_state.cur_epoch, self.n_epochs):
+            print("Epoch", epoch)
             train_state.cur_epoch = epoch
             for iteration_ind, batch in enumerate(train_dataloader):
                 loss, stats_dict = self.calculate_loss(model, batch)
@@ -94,22 +95,20 @@ class Trainer():
 
     def calculate_loss(self, model, input_data):
         # Forward and losses
-        pred_values = model.forward(input_data)
+        pred_values, trans_feat = model.forward(input_data)
         gt_distances = th.cat(input_data['gt_distances'], 0)
         mse_loss = th.nn.functional.mse_loss(pred_values, gt_distances)
 
-        l2_norms = [th.sum(th.square(w)) for w in model.parameters()]
-        # divide by 2 to cancel with gradient of square
-        l2_norm = sum(l2_norms) / 2
+        feature_transform_loss = 0
+        if model.e2f.feature_transform :
+            feature_transform_loss = feature_transform_regularizer(trans_feat)
 
-        l2_loss = self.l2_weight * l2_norm
-        loss = mse_loss + l2_loss
+        loss = mse_loss + feature_transform_loss * self.feature_transform_weight
+        print("mse", mse_loss, feature_transform_loss)
 
         stats_dict = dict(
             loss=loss.item(),
             mse_loss=mse_loss.item(),
-            l2_norm=l2_norm.item(),
-            l2_loss=l2_loss.item(),
         )
         return loss, stats_dict
 
