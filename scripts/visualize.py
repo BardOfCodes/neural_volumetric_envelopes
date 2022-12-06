@@ -1,3 +1,5 @@
+
+
 import torch as th 
 
 from nve_dev.utils.generic_utils import arg_parser, load_config
@@ -34,7 +36,7 @@ def main():
                                           shuffle=False)
     
     # Load model weights
-    model_path = "weights/debugging-locally-e2f-4-envelopes/weights_149.ptpkl" # TODO: put a path, make config or arg
+    model_path = "./weights/e2f_nonormals/best_model.ptpkl" # TODO: put a path, make config or arg
     model, _, _ = load_all_weights(
                 model, 
                 optimizer = None, 
@@ -43,7 +45,7 @@ def main():
                 load_optim = False, 
                 load_train_state = False)
     
-    save_mesh_V2(model, dataloader, file_name = "debug-locally-4-envelopes", num_samples_per_envelope = 2**18)
+    save_mesh_V2(model, dataloader, file_name = "e2f_nonormals", num_samples_per_envelope = 2**18)
     
     print("Visualization Done!")
 

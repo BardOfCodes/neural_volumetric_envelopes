@@ -90,7 +90,7 @@ _max = np.maximum
 # Neural
 
 @sdf3
-def neuralSDF(model, surface_points) :
+def neuralSDF(model, surface_points, surface_normals=torch.tensor([])) :
     # Inputs (n, 3) Outputs (n, 1)
     
     # Example sphere
@@ -100,10 +100,12 @@ def neuralSDF(model, surface_points) :
     #     return _length(p - center) - radius
 
     surface_points = surface_points.cuda()
+    if torch.numel(surface_normals) > 0:
+        surface_normals = surface_normals.cuda()
 
     def f(p):
         p = torch.tensor(p, device = "cuda", dtype=torch.float32)
-        output = model.predict_sdf(p, surface_points)
+        output = model.predict_sdf(p, surface_points, surface_normals)
         output = output.cpu().detach()
         output = np.array(output)
         return output

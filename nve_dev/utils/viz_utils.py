@@ -105,7 +105,7 @@ def save_mesh(cuboids : List[Cuboid], output_directory = "../../results/mesh_stl
 
 # TODO: Delete save_mesh; save_mesh_V2 is neural network version, but I'm keeping
 #       save_mesh as a reference that worked previously
-def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.01) :
+def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.1) :
     vertices = []        
 
     for idx, batch in enumerate(dataloader) :
@@ -113,7 +113,10 @@ def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", fi
         cuboid = Cuboid(torch.squeeze(batch["envelope_vertices"]).cpu())
 
         # f = sdf.sphere(radius=0.5)
-        f = sdf.neuralSDF(model, batch['surface_points'])
+        if model.use_surface_normals:
+            f = sdf.neuralSDF(model, batch['surface_points'], batch['surface_normals'])
+        else:
+            f = sdf.neuralSDF(model, batch['surface_points'])
 
         # Compute list of mesh triangle vertices. (P1 P2 P3)
         # I added bound epsilon, so we can get vertices on envelope boundaries (visually might improve connectiosn between envelopes?)

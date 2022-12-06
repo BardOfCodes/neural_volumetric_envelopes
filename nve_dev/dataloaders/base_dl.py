@@ -28,7 +28,6 @@ class EnvelopeDataset(th.utils.data.Dataset):
         with open(self.path, "rb") as f :
             loaded_dict = pickle.load(f)
 
-            self.grid_resolution = 8 # Hard coded for now, replace below
 
             # TODO: Marc/Anh Parse Grid Resolution from .pkl file - the code below should work just need to coordinate the .pkl file design
             # if "grid_resolution" in loaded_dict :
@@ -41,9 +40,11 @@ class EnvelopeDataset(th.utils.data.Dataset):
                 grid_idx = envelope_id.split('_')[-1]
                 grid_idx = int(grid_idx)
 
+                # if grid_idx == 483:
+                self.grid_resolution = envelope_data["grid_resolution"] 
                 self.envelope_vertices.append(self.compute_cuboid_vertices(grid_idx))
 
-                num_surface_points = envelope_data["surface_points"].shape[0]
+                num_surface_points = envelope_data["surface_points"].shape[0] # == num surface normals
                 self.min_surface_points = min(self.min_surface_points, num_surface_points)
                 self.max_surface_points = max(self.max_surface_points, num_surface_points)
                 
@@ -94,6 +95,7 @@ class EnvelopeDataset(th.utils.data.Dataset):
         # TODO: Other surface point padding options: Random Sample, Surface point mask
 
         self.surface_points = np.zeros((self.num_envelopes, self.max_surface_points, 3), dtype=np.float32)
+        self.surface_normals = np.zeros((self.num_envelopes, self.max_surface_points, 3), dtype=np.float32)
         self.training_points = np.zeros((self.num_envelopes, self.max_training_points, 3), dtype=np.float32)
         self.gt_distances = self.loss_masks = np.zeros((self.num_envelopes, self.max_training_points, 1), dtype=np.int32)
 
@@ -102,6 +104,9 @@ class EnvelopeDataset(th.utils.data.Dataset):
             # Currently padding with first surface points
             sp = envelope_data["surface_points"]
             self.surface_points[idx] = np.concatenate((sp, sp[:self.max_surface_points - sp.shape[0]]))
+            
+            sp = envelope_data["surface_point_normals"]
+            self.surface_normals[idx] = np.concatenate((sp, sp[:self.max_surface_points - sp.shape[0]]))
             
             num_training_points = envelope_data["training_points"].shape[0]
             self.training_points[idx, : num_training_points] = envelope_data["training_points"]
@@ -118,6 +123,7 @@ class EnvelopeDataset(th.utils.data.Dataset):
         # loss_mask represents the valid indices in training_points/gt_distances
         input_data = {
             "surface_points": self.surface_points[idx], 
+            "surface_normals": self.surface_normals[idx], 
             "training_points": self.training_points[idx], 
             "gt_distances": self.gt_distances[idx], 
             "loss_masks": self.loss_masks[idx],

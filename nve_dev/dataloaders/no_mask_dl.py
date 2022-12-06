@@ -22,12 +22,16 @@ class NoMaskDataset(EnvelopeDataset):
 
         self.surface_points = np.zeros(
             (self.num_envelopes, self.n_surface_points, 3), dtype=np.float32)
+        self.surface_normals = np.zeros(
+            (self.num_envelopes, self.n_surface_points, 3), dtype=np.float32)
         self.training_points = []
         self.gt_distances = []
         idx = 0
-        for _, envelope_data in loaded_dict.items():
+        for envelope_id, envelope_data in loaded_dict.items():
+            
             # Subsample self.n_surface_points
             sp = envelope_data["surface_points"]
+            sn = envelope_data["surface_point_normals"]
             
             # TODO: Revert to random sel_index with set seed for consistency across training/visualization
             # sel_index = np.arange(0, sp.shape[0])
@@ -36,19 +40,21 @@ class NoMaskDataset(EnvelopeDataset):
             sel_index = np.arange(0, self.n_surface_points) 
             
             self.surface_points[idx] = sp[sel_index]
+            self.surface_normals[idx] = sn[sel_index]
             self.training_points.append(envelope_data["training_points"].astype(np.float32))
             self.gt_distances.append(envelope_data["gt_distances"].astype(np.float32))
 
             idx += 1
-            # if idx == 4 :
-                    # break
-        
+            # if idx == 1 :
+            #     break
+    
 
     def __getitem__(self, idx):
         # loss_mask represents the valid indices in training_points/gt_distances
         # Dict for clarity:
         input_data = {
             "surface_points": self.surface_points[idx],
+            "surface_normals": self.surface_normals[idx],
             "training_points": self.training_points[idx],
             "gt_distances": self.gt_distances[idx],
             "envelope_vertices" : self.envelope_vertices[idx],
@@ -57,10 +63,12 @@ class NoMaskDataset(EnvelopeDataset):
 
 def no_mask_collate(batch, device="cuda"):
     surface_points = []
+    surface_normals = []
     training_points = []
     gt_distances = []
     for cur_batch in batch:
         surface_points.append(cur_batch['surface_points'])
+        surface_normals.append(cur_batch['surface_normals'])
         value = cur_batch['training_points']
         value = th.tensor(value).to(device, non_blocking=True)
         training_points.append(value)
@@ -70,9 +78,12 @@ def no_mask_collate(batch, device="cuda"):
     
     surface_points = np.stack(surface_points, 0)
     surface_points = th.tensor(surface_points).to(device, non_blocking=True)
+    surface_normals = np.stack(surface_normals, 0)
+    surface_normals = th.tensor(surface_normals).to(device, non_blocking=True)
     
     batch = {
         "surface_points": surface_points,
+        "surface_normals": surface_normals,
         "training_points": training_points,
         "gt_distances": gt_distances,
     }

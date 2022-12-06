@@ -18,6 +18,8 @@ class NVEModel(nn.Module):
         self.f2p = FeatureToPoint(model_config.F2P.INPUT_DIM, model_config.F2P.OUTPUT_DIM,
                                   model_config.F2P.HIDDEN_DIM, model_config.F2P.NUM_LAYERS)
         
+        self.use_surface_normals = model_config.E2F.INPUT_DIM == 6
+        
         # Add positional encoding to the points?
         # self.positinal_encoding = rff.layers.PositionalEncoding(sigma=1.0, m=10)
         self.positinal_encoding = None
@@ -29,10 +31,14 @@ class NVEModel(nn.Module):
     # sdf points, N x 3 
     # surface points, B X D
     @th.no_grad()
-    def predict_sdf(self, sdf_points, surface_points) :  
-        
+    def predict_sdf(self, sdf_points, surface_points, surface_normals=th.tensor([])) :  
+        if th.numel(surface_normals):
+            e2f_input = th.cat((surface_points, surface_normals), axis=2)
+        else:
+            e2f_input = surface_points
+        e2f_input = th.permute(e2f_input, (0,2,1)) # swap last two dimensions
         # feats -B X NUM_LATENTS X LATENT_DIM
-        feats, _, _ = self.e2f.forward(surface_points)
+        feats, _, _ = self.e2f.forward(e2f_input)
 
         # Expand the features for point prediction
         expanded_features = []
@@ -55,9 +61,14 @@ class NVEModel(nn.Module):
         return pred_values
     
     def forward(self, input_data):
-        # B X D
-        input_obj = input_data['surface_points']
-        
+        # E2F input: B x INPUT_DIM (3 or 6) X n_surface_points (per envelope)
+        if self.use_surface_normals:
+            input_obj = th.cat((input_data['surface_points'], input_data['surface_normals']), axis=2)
+        else: 
+            input_obj = input_data['surface_points']
+        input_obj = th.permute(input_obj, (0,2,1)) # swap last two dimensions
+
+
         # feats -B X NUM_LATENTS X LATENT_DIM
         feats, _, trans_feat = self.e2f.forward(input_obj)
 
