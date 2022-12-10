@@ -7,6 +7,7 @@ import torch as th
 from .base_e2f import PointNetLatent
 from .base_f2p import FeatureToPoint
 import numpy as np
+from .vqvae import VectorQuantize
 # import rff # pip install random-fourier-features-pytorch
 
 class NVEModel(nn.Module): 
@@ -21,12 +22,12 @@ class NVEModel(nn.Module):
         self.use_surface_normals = model_config.E2F.INPUT_DIM == 6
         
         # Add positional encoding to the points?
-        # self.positinal_encoding = rff.layers.PositionalEncoding(sigma=1.0, m=10)
-        self.positinal_encoding = None
+        # self.positional_encoding = rff.layers.PositionalEncoding(sigma=1.0, m=10)
+        self.positional_encoding = None
 
         # Add Flatten
         self.flatten = nn.Flatten()
-
+    
     # Helper function for visualization; Forward pass to predict sdf
     # sdf points, N x 3 
     # surface points, B X D
@@ -38,7 +39,7 @@ class NVEModel(nn.Module):
             e2f_input = surface_points
         e2f_input = th.permute(e2f_input, (0,2,1)) # swap last two dimensions
         # feats -B X NUM_LATENTS X LATENT_DIM
-        feats, _, _ = self.e2f.forward(e2f_input)
+        feats, _ = self.get_e2f_features(e2f_input)
 
         # Expand the features for point prediction
         expanded_features = []
@@ -51,8 +52,8 @@ class NVEModel(nn.Module):
         # B(E) X 3
         sdf_points = th.cat(sdf_points, 0)
         
-        if self.positinal_encoding is not None :
-            sdf_points = self.positinal_encoding(sdf_points)
+        if self.positional_encoding is not None :
+            sdf_points = self.positional_encoding(sdf_points)
         
         # Flatten and cat
         flattened_input = self.flatten(expanded_features)
@@ -60,6 +61,11 @@ class NVEModel(nn.Module):
         pred_values = self.f2p.forward(f2p_input)
         return pred_values
     
+    def get_e2f_features(self, input_obj):
+        feats, _, trans_feat = self.e2f.forward(input_obj)
+        additionals = dict(trans_feat=trans_feat)
+        return feats, additionals
+        
     def forward(self, input_data):
         # E2F input: B x INPUT_DIM (3 or 6) X n_surface_points (per envelope)
         if self.use_surface_normals:
@@ -70,7 +76,7 @@ class NVEModel(nn.Module):
 
 
         # feats -B X NUM_LATENTS X LATENT_DIM
-        feats, _, trans_feat = self.e2f.forward(input_obj)
+        feats, additionals = self.get_e2f_features(input_obj)
 
         # Expand the features for point prediction
         training_points = input_data['training_points']
@@ -83,12 +89,26 @@ class NVEModel(nn.Module):
         # B(E) X 3
         training_points = th.cat(training_points, 0)
 
-        if self.positinal_encoding is not None :
-            training_points = self.positinal_encoding(training_points)
+        if self.positional_encoding is not None :
+            training_points = self.positional_encoding(training_points)
 
         # Flatten and cat
         flattened_input = self.flatten(expanded_features)
         f2p_input = th.cat([flattened_input, training_points], 1)
 
         pred_values = self.f2p.forward(f2p_input)
-        return pred_values, trans_feat
+        return pred_values, additionals
+
+class CodeBookNVE(NVEModel):
+    
+    def __init__(self, model_config):
+        super(CodeBookNVE, self).__init__(model_config)
+        # Create the VQVAE:
+        self.vq = VectorQuantize(dim=model_config.E2F.LATENT_DIM,
+                                 codebook_size=model_config.CODEBOOK_SIZE)
+    
+    def get_e2f_features(self, input_obj):
+        feats, additionals = super(CodeBookNVE, self).get_e2f_features(input_obj)
+        feats, _, commit_loss = self.vq(feats)
+        additionals['commit_loss'] = commit_loss
+        return feats, additionals

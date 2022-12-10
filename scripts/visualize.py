@@ -7,7 +7,7 @@ from nve_dev.dataloaders import EnvelopeDataset, NoMaskDataset
 # Push these inside dataloaders as well.
 from nve_dev.dataloaders.base_dl import worker_init_fn
 from nve_dev.dataloaders.no_mask_dl import no_mask_collate
-from nve_dev.models import NVEModel
+import nve_dev.models as models
 from nve_dev.trainer import Trainer
 from nve_dev.evaluator import Evaluator
 from nve_dev.utils.train_utils import load_all_weights
@@ -25,7 +25,8 @@ def main():
     config = load_config(args)
 
     # Instantiate Model, optimizer
-    model = NVEModel(config.MODEL)
+    model_class = getattr(models, config.MODEL.TYPE)
+    model = model_class(config.MODEL)
     model.cuda()
     model.eval()
 
@@ -36,7 +37,7 @@ def main():
                                           shuffle=False)
     
     # Load model weights
-    model_path = "./weights/e2f_nonormals/best_model.ptpkl" # TODO: put a path, make config or arg
+    model_path = "%s/%s/best_model.ptpkl" % (config.MACHINE_SPEC.SAVE_DIR, config.MODEL.EXP_NAME)
     model, _, _ = load_all_weights(
                 model, 
                 optimizer = None, 
