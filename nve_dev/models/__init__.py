@@ -1,5 +1,6 @@
-from .base_nve import NVEModel
+from .base_nve import NVEModel, CodeBookNVE
 
 __all__ = [
-    "NVEModel"
+    "NVEModel",
+    "CodeBookNVE"
 ]

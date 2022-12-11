@@ -3,7 +3,7 @@ from configs.subconfigs.nve_model import config as model_config
 from configs.subconfigs.dataset import config as dataset_config 
 cfg = CN()
 
-cfg.EXP_NAME = "e2f_nonormals"
+cfg.EXP_NAME = "codebook"
 
 n_surface_points = 1024
 
@@ -29,8 +29,9 @@ cfg.DATALOADER.NUM_WORKERS = 0
 cfg.TRAINER = CN()
 cfg.TRAINER.EXP_NAME = cfg.EXP_NAME
 cfg.TRAINER.FEATURE_TRANSFORM_WEIGHT = 0.001
+cfg.TRAINER.COMMIT_LOSS_WEIGHT = 0
 cfg.TRAINER.N_EPOCHS = 10000
-cfg.TRAINER.SAVE_EPOCH = 50
+cfg.TRAINER.SAVE_EPOCH = 500
 cfg.TRAINER.EVAL_EPOCH = 5
 cfg.TRAINER.SAVE_DIR = cfg.MACHINE_SPEC.SAVE_DIR
 cfg.TRAINER.RESUME_CHECKPOINT = False
