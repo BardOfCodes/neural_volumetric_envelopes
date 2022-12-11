@@ -37,8 +37,13 @@ class NoMaskDataset(EnvelopeDataset):
             # sel_index = np.arange(0, sp.shape[0])
             # sel_index = np.random.choice(sel_index, size=self.n_surface_points)
             
-            sel_index = np.arange(0, self.n_surface_points) 
-            
+            if sp.shape[0] > self.n_surface_points:
+                # grab the first n_surface_points (points in each enevelope are already randomly permuted)
+                sel_index = np.arange(0, self.n_surface_points) 
+            else:
+                # if this envelope has fewer than n_surface_points, repeat the surface points until self.n_surface_points elements are chosen
+                sel_index = np.array(self.repeat([*range(sp.shape[0])], self.n_surface_points))  
+
             self.surface_points[idx] = sp[sel_index]
             self.surface_normals[idx] = sn[sel_index]
             self.training_points.append(envelope_data["training_points"].astype(np.float32))
@@ -48,7 +53,9 @@ class NoMaskDataset(EnvelopeDataset):
             # if idx == 1 :
             #     break
     
-
+    def repeat(self, seq, length):
+        multiple, remainder = divmod(length, len(seq))
+        return seq * multiple + seq[:remainder]
     def __getitem__(self, idx):
         # loss_mask represents the valid indices in training_points/gt_distances
         # Dict for clarity:

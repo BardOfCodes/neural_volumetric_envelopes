@@ -176,7 +176,7 @@ def save_envelope_pickle_data(point_sample_dir, surface_points_filename, trainin
 
 # get_surface_normals("sdf_data/cuboid/model.obj", np.load("sdf_data/cuboid/surface_points.npz")['surface_points'])
 
-save_envelope_pickle_data("data/nve/sdf_data/cuboid", "surface_points.npz", "training_points.npz", 8, save_point_clouds=True)
+save_envelope_pickle_data("data/nve/sdf_data/9planes/1a6ad7a24bb89733f412783097373bdc/models", "surface_points.npz", "training_points.npz", 32, save_point_clouds=False)
 
 # with open('sdf_data/cuboid/backup_cuboid_envelopes.pkl', 'rb') as f:
 #     loaded_dict = pickle.load(f)
