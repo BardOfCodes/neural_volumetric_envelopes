@@ -5,7 +5,7 @@ from nve_dev.dataloaders import EnvelopeDataset, NoMaskDataset
 # Push these inside dataloaders as well.
 from nve_dev.dataloaders.base_dl import worker_init_fn
 from nve_dev.dataloaders.no_mask_dl import no_mask_collate
-from nve_dev.models import NVEModel
+import nve_dev.models as models 
 from nve_dev.trainer import Trainer
 from nve_dev.evaluator import Evaluator
 
@@ -22,7 +22,8 @@ def main():
     config = load_config(args)
 
     # Instantiate Model, optimizer
-    model = NVEModel(config.MODEL)
+    model_class = getattr(models, config.MODEL.TYPE)
+    model = model_class(config.MODEL)
     model.cuda()
     optimizer = th.optim.AdamW(model.parameters(), lr=config.OPT.LR)
     # TO ADD LR Scheduler

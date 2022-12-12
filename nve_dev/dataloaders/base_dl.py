@@ -2,7 +2,7 @@
 A torch dataset.
 Strongly linked to Envelope extraction.
 """
-from typing import Dict
+from typing import Dict, List
 import torch as th
 import math
 import pickle

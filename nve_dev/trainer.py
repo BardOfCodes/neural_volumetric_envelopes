@@ -29,6 +29,7 @@ class Trainer():
 
         # Hyps
         self.feature_transform_weight = train_config.FEATURE_TRANSFORM_WEIGHT
+        self.commit_loss_weight = train_config.COMMIT_LOSS_WEIGHT
         self.n_epochs = train_config.N_EPOCHS
         self.save_epoch = train_config.SAVE_EPOCH
         self.eval_epoch = train_config.EVAL_EPOCH
@@ -95,17 +96,20 @@ class Trainer():
 
     def calculate_loss(self, model, input_data):
         # Forward and losses
-        pred_values, trans_feat = model.forward(input_data)
+        pred_values, additionals  = model.forward(input_data)
         gt_distances = th.cat(input_data['gt_distances'], 0)
         mse_loss = th.nn.functional.mse_loss(pred_values, gt_distances)
 
         feature_transform_loss = 0
         if model.e2f.feature_transform :
+            trans_feat = additionals['trans_feat']
             feature_transform_loss = feature_transform_regularizer(trans_feat)
 
         loss = mse_loss + feature_transform_loss * self.feature_transform_weight
-        print("mse", mse_loss, feature_transform_loss)
-
+        # And Commit Loss
+        if self.commit_loss_weight > 0:
+            loss += self.commit_loss_weight * additionals['commit_loss'][0]
+        
         stats_dict = dict(
             loss=loss.item(),
             mse_loss=mse_loss.item(),

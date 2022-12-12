@@ -19,6 +19,7 @@ class Evaluator(Trainer):
         # Only care about test set MSE
         self.l2_weight = 0
         self.feature_transform_weight = 0
+        self.commit_loss_weight = 0
         
         self.save_dir = eval_config.SAVE_DIR
     
