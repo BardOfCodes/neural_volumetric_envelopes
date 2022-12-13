@@ -3,15 +3,16 @@
 2. Tool for extracting a mesh with marching cubes.
 """
 
-# TODO: Maybe Move cuboid definiton to different file/directory (envelope_utils)
-# TODO: Implement neuralSDF
-
 from typing import List
 import numpy as np
 import random
 from .sdf import sdf 
 import os
 import torch
+from skimage import measure
+import plyfile
+import time
+from tqdm import tqdm
 
 class Cuboid :
 
@@ -32,7 +33,7 @@ class Cuboid :
 
         # Compute center
         self.centroid = np.array(vertices.sum(axis = 0) / 8.0)
-        print("Centroid debugging", self.centroid, self.side_length)
+        # print("Centroid debugging", self.centroid, self.side_length)
         
 
         # Compute bounds
@@ -43,7 +44,7 @@ class Cuboid :
         self.z_min = vertices[:, 2].min()
         self.z_max = vertices[:, 2].max()
 
-        print("X/Y/Z MIN/MAX", np.array(self.x_min),np.array(self.x_max),np.array(self.y_min),np.array(self.y_max),np.array(self.z_min),np.array(self.z_max))
+        # print("X/Y/Z MIN/MAX", np.array(self.x_min),np.array(self.x_max),np.array(self.y_min),np.array(self.y_max),np.array(self.z_min),np.array(self.z_max))
 
     def envelope_contains_point(self, points) -> bool :
         assert(len(points.shape) == 2 and points.shape[1] == 3)
@@ -75,37 +76,8 @@ class Cuboid :
 
         return points
 
-def save_mesh(cuboids : List[Cuboid], output_directory = "../../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22) :
-    vertices = []
-    
-    for cuboid in cuboids :
-        # Create neuralSDF function with params
-        f = sdf.sphere(radius=0.5)
-
-        # Compute list of mesh triangle vertices. (P1 P2 P3)
-        points = f.generate(samples=num_samples_per_envelope)
-        
-        # Transform vertices from envelope_space to world_space, and store  
-        points = np.array(points)
-        world_space_points = cuboid.envelope_to_world(points)
-        
-        world_space_points = [world_space_points[i] for i in range(len(points))]
-
-        vertices.extend(world_space_points)
-
-    # Convert all list of triangles -> .stl file (using library's write_binary)
-    os.makedirs(output_directory , exist_ok = True) 
-    if not file_name.endswith('.stl') :
-        file_name = file_name + ".stl"
-
-    file_path = os.path.join(output_directory, file_name)
-
-    sdf.write_binary_stl(file_path, vertices)
-    print("Saved mesh to", file_path)
-
-# TODO: Delete save_mesh; save_mesh_V2 is neural network version, but I'm keeping
-#       save_mesh as a reference that worked previously
-def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.1) :
+# This renders an SDF per envelope; more useful for debugging and inspecting envelope behavior
+def save_mesh_debug(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.1) :
     vertices = []        
 
     for idx, batch in enumerate(dataloader) :
@@ -147,6 +119,164 @@ def save_mesh_V2(model, dataloader, output_directory = "../results/mesh_stl", fi
     print("Saved mesh to", file_path)
     print("Number of triangles", len(vertices) // 3)
 
+# This renders an SDF for the whole volume
+# N - number of samples across axis; total num_points is N^3
+def save_mesh(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", N = 64, max_batch = 16 ** 3) :
+    start = time.time()
+    os.makedirs(output_directory , exist_ok = True) 
+    if not file_name.endswith('.ply') :
+        file_name = file_name + ".ply"
+
+    ply_filename = os.path.join(output_directory, file_name)
+
+    # Change these to scale and/or offset final mesh
+    offset = scale = None
+
+    # ASSUMING (bottom, left, down) corner is (0, 0, 0)
+    voxel_origin = [0, 0, 0]
+    voxel_size = float(dataloader.dataset.grid_resolution) / (N - 1.0)
+
+    overall_index = torch.arange(0, N ** 3, 1, out=torch.LongTensor())
+    samples = torch.zeros(N ** 3, 4)
+
+    # transform first 3 columns
+    # to be the x, y, z index
+    samples[:, 2] = overall_index % N
+    samples[:, 1] = (overall_index.long() / N) % N
+    samples[:, 0] = ((overall_index.long() / N) / N) % N   
+
+    # transform first 3 columns
+    # to be the x, y, z coordinate
+    samples[:, 0] = (samples[:, 0] * voxel_size) + voxel_origin[2]
+    samples[:, 1] = (samples[:, 1] * voxel_size) + voxel_origin[1]
+    samples[:, 2] = (samples[:, 2] * voxel_size) + voxel_origin[0]
+ 
+    num_samples = N ** 3
+    print("Num samples:", num_samples)
+
+    samples.requires_grad = False
+
+    # Pre-computing cuboid constructions
+    idx_to_cuboid = {}
+    for idx, batch in enumerate(dataloader) :
+            cuboid = Cuboid(torch.squeeze(batch["envelope_vertices"]).cpu())
+            idx_to_cuboid[idx] = cuboid
+
+    sample_idx = 0
+    while sample_idx < num_samples :
+        print("sample", sample_idx)
+        # world space x, y, z to sample
+        sample_subset = samples[sample_idx : min(sample_idx + max_batch, num_samples), 0:3]
+
+        # If point does not belong to any envelope, set default sdf
+        samples[sample_idx : min(sample_idx + max_batch, num_samples), 3] = dataloader.dataset.grid_resolution
+
+        for idx, batch in enumerate(dataloader) :
+            cuboid = idx_to_cuboid[idx]
+
+            # Valid samples for envelope
+            envelope_mask = cuboid.envelope_contains_point(sample_subset)
+
+            # Transform world -> envelope
+            envelope_sample = cuboid.world_to_envelope(sample_subset)
+
+            surface_points = batch['surface_points'].cuda()
+            surface_normals = torch.tensor([]).cuda()
+
+            if model.use_surface_normals:
+                    surface_normals = batch['surface_normals'].cuda()
+            
+            p = torch.tensor(envelope_sample, device = "cuda", dtype=torch.float32)
+
+            previous_sdf = samples[sample_idx : min(sample_idx + max_batch, num_samples), 3:]
+            predicted_sdf = model.predict_sdf(p, surface_points, surface_normals).detach().cpu()
+
+            predicted_sdf[torch.logical_not(envelope_mask)] = previous_sdf[torch.logical_not(envelope_mask)]
+
+            samples[sample_idx : min(sample_idx + max_batch, num_samples), 3:] = predicted_sdf
+
+        sample_idx += max_batch
+
+    sdf_values = samples[:, 3]
+    sdf_values = sdf_values.reshape(N, N, N)
+
+    end = time.time()
+    print("sampling takes: %f" % (end - start))
+
+    convert_sdf_samples_to_ply(
+        sdf_values.data.cpu(),
+        voxel_origin,
+        voxel_size,
+        ply_filename,
+        offset,
+        scale,
+    )
+
+# Based off https://github.com/facebookresearch/DeepSDF/blob/48c19b8d49ed5293da4edd7da8c3941444bc5cd7/deep_sdf/mesh.py
+def convert_sdf_samples_to_ply(
+    pytorch_3d_sdf_tensor,
+    voxel_grid_origin,
+    voxel_size,
+    ply_filename_out,
+    offset=None,
+    scale=None,
+):
+    """
+    Convert sdf samples to .ply
+    :param pytorch_3d_sdf_tensor: a torch.FloatTensor of shape (n,n,n)
+    :voxel_grid_origin: a list of three floats: the bottom, left, down origin of the voxel grid
+    :voxel_size: float, the size of the voxels
+    :ply_filename_out: string, path of the filename to save to
+    This function adapted from: https://github.com/RobotLocomotion/spartan
+    """
+    start_time = time.time()
+
+    numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
+
+    verts, faces, normals, values = measure.marching_cubes(
+        numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
+    )
+
+    # transform from voxel coordinates to camera coordinates
+    # note x and y are flipped in the output of marching_cubes
+    mesh_points = np.zeros_like(verts)
+    mesh_points[:, 0] = voxel_grid_origin[0] + verts[:, 0]
+    mesh_points[:, 1] = voxel_grid_origin[1] + verts[:, 1]
+    mesh_points[:, 2] = voxel_grid_origin[2] + verts[:, 2]
+
+    # apply additional offset and scale
+    if scale is not None:
+        mesh_points = mesh_points / scale
+    if offset is not None:
+        mesh_points = mesh_points - offset
+
+    # try writing to the ply file
+
+    num_verts = verts.shape[0]
+    num_faces = faces.shape[0]
+
+    verts_tuple = np.zeros((num_verts,), dtype=[("x", "f4"), ("y", "f4"), ("z", "f4")])
+
+    for i in range(0, num_verts):
+        verts_tuple[i] = tuple(mesh_points[i, :])
+
+    faces_building = []
+    for i in range(0, num_faces):
+        faces_building.append(((faces[i, :].tolist(),)))
+    faces_tuple = np.array(faces_building, dtype=[("vertex_indices", "i4", (3,))])
+
+    el_verts = plyfile.PlyElement.describe(verts_tuple, "vertex")
+    el_faces = plyfile.PlyElement.describe(faces_tuple, "face")
+
+    ply_data = plyfile.PlyData([el_verts, el_faces])
+    print("saving mesh to %s" % (ply_filename_out))
+    ply_data.write(ply_filename_out)
+
+    print(
+        "converting to ply format and writing to file took {} s".format(
+            time.time() - start_time
+        )
+    )
 
 if __name__ == '__main__':
     print("Testing cuboid helpers")

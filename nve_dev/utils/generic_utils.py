@@ -6,6 +6,8 @@ from yacs.config import CfgNode as CN
 arg_parser = argparse.ArgumentParser(description="singular parser")
 arg_parser.add_argument('--config-file', type=str,
                         default="../configs/baseline.py")
+arg_parser.add_argument('--debug', action='store_true',
+                        help="Enables DEBUG mode; for visualizer computes mesh independetly per envelope")
 
 
 def load_config(args):

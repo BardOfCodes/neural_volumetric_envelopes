@@ -10,7 +10,7 @@ import nve_dev.models as models
 from nve_dev.trainer import Trainer
 from nve_dev.evaluator import Evaluator
 from nve_dev.utils.train_utils import load_all_weights
-from nve_dev.utils.viz_utils import save_mesh_V2
+from nve_dev.utils.viz_utils import save_mesh_debug, save_mesh
 
 def main():
     th.backends.cudnn.benchmark = True
@@ -36,7 +36,7 @@ def main():
                                           shuffle=False)
     
     # Load model weights
-    model_path = "%s/%s/best_model.ptpkl" % (config.MACHINE_SPEC.SAVE_DIR, config.MODEL.EXP_NAME)
+    model_path = "%s/%s/best_model.ptpkl" % (config.MACHINE_SPEC.SAVE_DIR, config.EXP_NAME)
     model, _, _ = load_all_weights(
                 model, 
                 optimizer = None, 
@@ -45,8 +45,13 @@ def main():
                 load_optim = False, 
                 load_train_state = False)
     
-    save_mesh_V2(model, dataloader, file_name = "e2f_nonormals", num_samples_per_envelope = 2**18)
-    
+    DEBUG = args.debug
+
+    if DEBUG :
+        save_mesh_debug(model, dataloader, file_name = "e2f_nonormals_debug", num_samples_per_envelope = 2**18)
+    else :
+        save_mesh(model, dataloader, file_name = "e2f_nonormals", N = 256, max_batch = 64 ** 3)
+
     print("Visualization Done!")
 
 
