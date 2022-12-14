@@ -48,9 +48,9 @@ def main():
     DEBUG = args.debug
 
     if DEBUG :
-        save_mesh_debug(model, dataloader, file_name = "e2f_nonormals_debug", num_samples_per_envelope = 2**18)
+        save_mesh_debug(model, dataloader, file_name = "%s_output_debug" %(config.EXP_NAME) , num_samples_per_envelope = 2**18)
     else :
-        save_mesh(model, dataloader, file_name = "e2f_nonormals", N = 256, max_batch = 64 ** 3)
+        save_mesh(model, dataloader, file_name = "%s_output_debug" %(config.EXP_NAME), N = 256, max_batch = 64 ** 3)
 
     print("Visualization Done!")
 
