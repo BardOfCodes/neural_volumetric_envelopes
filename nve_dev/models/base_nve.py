@@ -39,7 +39,7 @@ class NVEModel(nn.Module):
             e2f_input = surface_points
         e2f_input = th.permute(e2f_input, (0,2,1)) # swap last two dimensions
         # feats -B X NUM_LATENTS X LATENT_DIM
-        feats, _ = self.get_e2f_features(e2f_input)
+        feats, additionals = self.get_e2f_features(e2f_input)
 
         # Expand the features for point prediction
         expanded_features = []
@@ -59,7 +59,7 @@ class NVEModel(nn.Module):
         flattened_input = self.flatten(expanded_features)
         f2p_input = th.cat([flattened_input, sdf_points], 1)
         pred_values = self.f2p.forward(f2p_input)
-        return pred_values
+        return pred_values, additionals
     
     def get_e2f_features(self, input_obj):
         feats, _, trans_feat = self.e2f.forward(input_obj)
@@ -109,6 +109,8 @@ class CodeBookNVE(NVEModel):
     
     def get_e2f_features(self, input_obj):
         feats, additionals = super(CodeBookNVE, self).get_e2f_features(input_obj)
-        feats, _, commit_loss = self.vq(feats)
+        feats, codebook_indices, commit_loss = self.vq(feats)
         additionals['commit_loss'] = commit_loss
+        additionals['codebook_indices'] = codebook_indices
+        # additionals['code'] = feats.detach().reshape(-1)
         return feats, additionals

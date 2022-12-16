@@ -13,6 +13,7 @@ from skimage import measure
 import plyfile
 import time
 from tqdm import tqdm
+import _pickle as cPickle
 
 class Cuboid :
 
@@ -75,6 +76,66 @@ class Cuboid :
 
 
         return points
+
+def save_each_envelope(model, dataloader, output_directory, num_samples_per_envelope=2 ** 15, bound_epsilon=0.1):
+    # Contains some extra code for analysis.
+    # envelope_dict = {}
+    # feature_dict = {}
+
+    for idx, batch in enumerate(dataloader):
+        print(idx)
+        cuboid = Cuboid(torch.squeeze(batch["envelope_vertices"]).cpu())
+
+        # f = sdf.sphere(radius=0.5)
+        if model.use_surface_normals:
+            f = sdf.neuralSDF(model, batch['surface_points'], batch['surface_normals'])
+        else:
+            f = sdf.neuralSDF(model, batch['surface_points'])
+
+        # Compute list of mesh triangle vertices. (P1 P2 P3)
+        # I added bound epsilon, so we can get vertices on envelope boundaries (visually might improve connectiosn between envelopes?)
+        min_bound = -0.5 - bound_epsilon
+        max_bound = 0.5 + bound_epsilon
+        points = f.generate(samples=num_samples_per_envelope, bounds = ((min_bound, min_bound, min_bound), (max_bound, max_bound, max_bound)), sparse = False)
+
+        # Transform vertices from envelope_space to world_space, and store  
+        if len(points) > 0 :
+            points = np.array(points)
+            world_space_points = cuboid.envelope_to_world(points)
+            # world_space_points = points
+            # Flip axis:
+            world_space_points -= 16
+            world_space_points = world_space_points / 10.
+            world_space_points = np.stack([world_space_points[:, 0], world_space_points[:, 2], world_space_points[:, 1]], 1)
+            
+            world_space_points = [world_space_points[i] for i in range(len(points))]
+            
+
+            # Convert all list of triangles -> .stl file (using library's write_binary)
+            os.makedirs(output_directory , exist_ok = True) 
+            file_name = "_".join([str(x) for x in model.additionals['codebook_indices'][0]])
+            
+            # if file_name in envelope_dict.keys():
+            #     envelope_dict[file_name].append(idx)
+            # else:
+            #     envelope_dict[file_name] = [idx]
+            # feature_dict[file_name] = model.additionals['code']
+            
+            if not file_name.endswith('.stl') :
+                file_name = file_name + ".stl"
+            file_path = os.path.join(output_directory, file_name)
+
+            sdf.write_binary_stl(file_path, world_space_points)
+            print("Saved mesh to", file_path)
+            print("Number of triangles", len(world_space_points) // 3)
+            
+        else :
+            print("No triangles found in an envelope")
+            
+    # cPickle.dump(envelope_dict, open("results/envelope_info.pkl", "wb"))
+    # cPickle.dump(feature_dict, open("results/feature_info.pkl", "wb"))
+
+    
 
 # This renders an SDF per envelope; more useful for debugging and inspecting envelope behavior
 def save_mesh_debug(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.1) :
@@ -211,6 +272,7 @@ def save_mesh(model, dataloader, output_directory = "../results/mesh_stl", file_
         offset,
         scale,
     )
+
 
 # Based off https://github.com/facebookresearch/DeepSDF/blob/48c19b8d49ed5293da4edd7da8c3941444bc5cd7/deep_sdf/mesh.py
 def convert_sdf_samples_to_ply(
