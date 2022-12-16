@@ -48,7 +48,7 @@ def main():
         across_data_new_mem += new_mem
         
         # Original mem:
-        filepath = os.path.join(path, dir, "models/model_normalized.obj")
+        filepath = os.path.join(path, dir, "models/model_normalized_manifold.obj")
         old_mem = os.path.getsize(filepath) * 8 # since it returns bytes
         
         across_data_old_mem += old_mem
@@ -58,7 +58,6 @@ def main():
         compression_list.append(compression_ratio)
     
     compression_np = np.array(compression_list)
-    
     print("AVG. Compression", np.mean(compression_np), "+-", np.std(compression_np))
     print("Median. Compression", np.mean(compression_np))
         
