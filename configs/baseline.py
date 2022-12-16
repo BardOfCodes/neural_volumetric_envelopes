@@ -3,7 +3,7 @@ from configs.subconfigs.nve_model import config as model_config
 from configs.subconfigs.dataset import config as dataset_config 
 cfg = CN()
 
-cfg.EXP_NAME = "single_plane"
+cfg.EXP_NAME = "main"
 
 n_surface_points = 1024
 
@@ -16,14 +16,16 @@ cfg.MACHINE_SPEC.LOG_DIR = "logs/" + cfg.EXP_NAME
 cfg.MODEL = model_config.clone()
 
 cfg.OPT = CN()
-cfg.OPT.LR = 0.0001
+cfg.OPT.LR = 0.0003
 
 cfg.DATASET = dataset_config.clone()
 cfg.DATASET.PATH = cfg.MACHINE_SPEC.DATA_DIR
 cfg.DATASET.N_SURFACE_POINTS = n_surface_points
+cfg.DATASET.MODE = "SINGLE"
+cfg.DATASET.N_SHAPES = 1
 
 cfg.DATALOADER = CN()
-cfg.DATALOADER.BATCH_SIZE = 16
+cfg.DATALOADER.BATCH_SIZE = 256
 cfg.DATALOADER.NUM_WORKERS = 0
 
 cfg.TRAINER = CN()

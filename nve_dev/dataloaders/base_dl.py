@@ -6,6 +6,7 @@ from typing import Dict, List
 import torch as th
 import math
 import pickle
+import os
 import numpy as np
 
 class EnvelopeDataset(th.utils.data.Dataset):
@@ -14,6 +15,8 @@ class EnvelopeDataset(th.utils.data.Dataset):
         
         self.path = dataset_config.PATH   
         self.n_surface_points = dataset_config.N_SURFACE_POINTS
+        self.mode = dataset_config.MODE
+        self.n_shapes = dataset_config.N_SHAPES
         
         self.min_surface_points = float("inf")
         self.max_surface_points = -1
@@ -25,26 +28,30 @@ class EnvelopeDataset(th.utils.data.Dataset):
         # Represents 4/8 vertices for envelope; used for visualization
         self.envelope_vertices : List[np.array] = []
 
-        with open(self.path, "rb") as f :
-            loaded_dict = pickle.load(f)
-
-            for envelope_id, envelope_data in loaded_dict.items() :
-                print("envelope id", envelope_id)
-                grid_idx = envelope_id.split('_')[-1]
-                grid_idx = int(grid_idx)
-
-                self.grid_resolution = envelope_data["grid_resolution"] 
-                self.envelope_vertices.append(self.compute_cuboid_vertices(grid_idx))
-
-                num_surface_points = envelope_data["surface_points"].shape[0] # == num surface normals
-                self.min_surface_points = min(self.min_surface_points, num_surface_points)
-                self.max_surface_points = max(self.max_surface_points, num_surface_points)
+        if self.mode == "SINGLE":
+            
+            with open(self.path, "rb") as f :
+                loaded_dict = pickle.load(f)
+                self.compute_stats_from_dict(loaded_dict)
+        elif self.mode == "MULTIPLE":
+            # Load the number of planes:
+            directories = os.listdir(self.path)
+            directories = [x for x in directories if os.path.exists(os.path.join(self.path, x, "models/envelopes.pkl"))]
+            directories = directories[:self.n_shapes]
+            loaded_dict = {}
+            count = 0
+            for dir in directories:
+                filepath = os.path.join(self.path, dir, "models/envelopes.pkl")
                 
-                num_training_points = envelope_data["training_points"].shape[0]
-                self.min_training_points = min(self.min_training_points, num_training_points)
-                self.max_training_points = max(self.max_training_points, num_training_points)
-                
-                self.num_envelopes += 1
+                with open(filepath, "rb") as f :
+                    new_loaded_dict = pickle.load(f)
+                    self.compute_stats_from_dict(new_loaded_dict)
+                    # Before counting the
+                    for key, value in new_loaded_dict.items():
+                        grid_idx = key.split('_')[-1]
+                        grid_idx = int(grid_idx)
+                        loaded_dict["%d_%d" % (grid_idx, count)] = value
+                    count += 1
         
         # Adding multiple data workers compatability
         self.start = 0
@@ -56,6 +63,26 @@ class EnvelopeDataset(th.utils.data.Dataset):
 
         self.load_points(loaded_dict)
         
+    def compute_stats_from_dict(self, loaded_dict):
+        
+        for envelope_id, envelope_data in loaded_dict.items() :
+            print("envelope id", envelope_id)
+            grid_idx = envelope_id.split('_')[-1]
+            grid_idx = int(grid_idx)
+
+            self.grid_resolution = envelope_data["grid_resolution"] 
+            self.envelope_vertices.append(self.compute_cuboid_vertices(grid_idx))
+
+            num_surface_points = envelope_data["surface_points"].shape[0] # == num surface normals
+            self.min_surface_points = min(self.min_surface_points, num_surface_points)
+            self.max_surface_points = max(self.max_surface_points, num_surface_points)
+            
+            num_training_points = envelope_data["training_points"].shape[0]
+            self.min_training_points = min(self.min_training_points, num_training_points)
+            self.max_training_points = max(self.max_training_points, num_training_points)
+            
+            self.num_envelopes += 1
+            
     def compute_cuboid_vertices(self, grid_idx):
         x_min = float(grid_idx % self.grid_resolution)
         x_max = x_min + 1.0
