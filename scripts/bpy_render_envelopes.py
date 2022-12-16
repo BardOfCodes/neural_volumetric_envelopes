@@ -48,7 +48,6 @@ for file_name in files:
     bpy.context.scene.render.filepath = save_file_name
     bpy.ops.render.render(write_still = True)
     # Delete object.
-    
     if bpy.context.object.mode == 'EDIT':
         bpy.ops.object.mode_set(mode='OBJECT')
     # deselect all objects
