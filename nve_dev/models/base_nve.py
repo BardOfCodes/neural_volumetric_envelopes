@@ -112,5 +112,5 @@ class CodeBookNVE(NVEModel):
         feats, codebook_indices, commit_loss = self.vq(feats)
         additionals['commit_loss'] = commit_loss
         additionals['codebook_indices'] = codebook_indices
-        # additionals['code'] = feats.detach().reshape(-1)
+        additionals['code'] = feats.detach().reshape(-1)
         return feats, additionals

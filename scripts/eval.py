@@ -36,7 +36,8 @@ def main():
                                           shuffle=False, collate_fn=no_mask_collate)
     
     # Load model weights - Change if required.
-    # model_path = "%s/%s/best_model.ptpkl" % (config.MACHINE_SPEC.SAVE_DIR, config.EXP_NAME)
+    model_path = "%s/%s/best_model.ptpkl" % (config.MACHINE_SPEC.SAVE_DIR, config.EXP_NAME)
+    model_path = "%s/%s/weights_999.ptpkl" % (config.MACHINE_SPEC.SAVE_DIR, config.EXP_NAME)
     
     model, optimizer, train_state = load_all_weights(
                 model, 

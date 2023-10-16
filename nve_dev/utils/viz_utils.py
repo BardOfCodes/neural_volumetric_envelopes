@@ -14,6 +14,10 @@ import plyfile
 import time
 from tqdm import tqdm
 import _pickle as cPickle
+from nve_dev.dataloaders import EnvelopeDataset, NoMaskDataset
+from nve_dev.dataloaders.no_mask_dl import no_mask_collate
+from nve_dev.dataloaders.base_dl import worker_init_fn
+import torch as th
 
 class Cuboid :
 
@@ -79,8 +83,8 @@ class Cuboid :
 
 def save_each_envelope(model, dataloader, output_directory, num_samples_per_envelope=2 ** 15, bound_epsilon=0.1):
     # Contains some extra code for analysis.
-    # envelope_dict = {}
-    # feature_dict = {}
+    envelope_dict = {}
+    feature_dict = {}
 
     for idx, batch in enumerate(dataloader):
         print(idx)
@@ -101,11 +105,11 @@ def save_each_envelope(model, dataloader, output_directory, num_samples_per_enve
         # Transform vertices from envelope_space to world_space, and store  
         if len(points) > 0 :
             points = np.array(points)
-            world_space_points = cuboid.envelope_to_world(points)
-            # world_space_points = points
+            # world_space_points = cuboid.envelope_to_world(points)
+            world_space_points = points
             # Flip axis:
-            world_space_points -= 16
-            world_space_points = world_space_points / 10.
+            # world_space_points -= 16
+            # world_space_points = world_space_points / 10.
             world_space_points = np.stack([world_space_points[:, 0], world_space_points[:, 2], world_space_points[:, 1]], 1)
             
             world_space_points = [world_space_points[i] for i in range(len(points))]
@@ -115,11 +119,11 @@ def save_each_envelope(model, dataloader, output_directory, num_samples_per_enve
             os.makedirs(output_directory , exist_ok = True) 
             file_name = "_".join([str(x) for x in model.additionals['codebook_indices'][0]])
             
-            # if file_name in envelope_dict.keys():
-            #     envelope_dict[file_name].append(idx)
-            # else:
-            #     envelope_dict[file_name] = [idx]
-            # feature_dict[file_name] = model.additionals['code']
+            if file_name in envelope_dict.keys():
+                envelope_dict[file_name].append(idx)
+            else:
+                envelope_dict[file_name] = [idx]
+            feature_dict[file_name] = model.additionals['code']
             
             if not file_name.endswith('.stl') :
                 file_name = file_name + ".stl"
@@ -132,13 +136,13 @@ def save_each_envelope(model, dataloader, output_directory, num_samples_per_enve
         else :
             print("No triangles found in an envelope")
             
-    # cPickle.dump(envelope_dict, open("results/envelope_info.pkl", "wb"))
-    # cPickle.dump(feature_dict, open("results/feature_info.pkl", "wb"))
+    cPickle.dump(envelope_dict, open("results/envelope_info_32.pkl", "wb"))
+    cPickle.dump(feature_dict, open("results/feature_info_32.pkl", "wb"))
 
     
 
 # This renders an SDF per envelope; more useful for debugging and inspecting envelope behavior
-def save_mesh_debug(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.1) :
+def save_mesh_debug(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", num_samples_per_envelope = 2**22, bound_epsilon = 0.1):
     vertices = []        
 
     for idx, batch in enumerate(dataloader) :
@@ -180,6 +184,82 @@ def save_mesh_debug(model, dataloader, output_directory = "../results/mesh_stl",
     print("Saved mesh to", file_path)
     print("Number of triangles", len(vertices) // 3)
 
+def save_each_plane(model, config, output_directory, num_samples_per_envelope = 2**18, special_code=1, bound_epsilon=0.1):
+    # Create data loader
+    # save stls to a fixed folder
+    # create color indices
+    
+    # Instantiate DataLoader
+    path = config.DATASET.PATH
+    n_shapes = config.DATASET.N_SHAPES
+    config.DATASET.MODE = "SINGLE"
+    directories = os.listdir(path)
+    directories = [x for x in directories if os.path.exists(os.path.join(path, x, "models/envelopes.pkl"))]
+    directories = directories[:n_shapes]
+    # Selected directories only: 
+    
+    
+    for dir in directories:
+        filepath = os.path.join(path, dir, "models/envelopes.pkl")
+        
+        # Instantiate DataLoader
+        config.DATASET.PATH = filepath
+        dataset = NoMaskDataset(config.DATASET)
+        dataloader = th.utils.data.DataLoader(dataset, batch_size=1, pin_memory=False,
+                                            num_workers=0, worker_init_fn=worker_init_fn,
+                                            shuffle=False)
+        cur_output_directory = os.path.join(output_directory, dir)
+        os.makedirs(cur_output_directory , exist_ok = True) 
+        for idx, batch in enumerate(dataloader):
+            print(idx)
+            cuboid = Cuboid(torch.squeeze(batch["envelope_vertices"]).cpu())
+
+            # f = sdf.sphere(radius=0.5)
+            if model.use_surface_normals:
+                f = sdf.neuralSDF(model, batch['surface_points'], batch['surface_normals'])
+            else:
+                f = sdf.neuralSDF(model, batch['surface_points'])
+
+            # Compute list of mesh triangle vertices. (P1 P2 P3)
+            # I added bound epsilon, so we can get vertices on envelope boundaries (visually might improve connectiosn between envelopes?)
+            min_bound = -0.5 - bound_epsilon
+            max_bound = 0.5 + bound_epsilon
+            points = f.generate(samples=num_samples_per_envelope, bounds = ((min_bound, min_bound, min_bound), (max_bound, max_bound, max_bound)), sparse = False)
+
+            # Transform vertices from envelope_space to world_space, and store  
+            if len(points) > 0 :
+                points = np.array(points)
+                world_space_points = cuboid.envelope_to_world(points)
+                world_space_points -= 16
+                world_space_points = world_space_points / 10.
+                world_space_points = np.stack([world_space_points[:, 0], world_space_points[:, 2], world_space_points[:, 1]], 1)
+                world_space_points = [world_space_points[i] for i in range(len(points))]
+                
+
+                # Convert all list of triangles -> .stl file (using library's write_binary)
+                file_name = "_".join([str(x) for x in model.additionals['codebook_indices'][0]])
+                
+                # Now Mark if it is the selected index
+                # if file_name == special_code:
+                code_ids = [x for x in model.additionals['codebook_indices'][0]]
+                if special_code in code_ids:
+                    file_name += "_1"
+                else:
+                    file_name += "_0"
+                
+                
+                if not file_name.endswith('.stl') :
+                    file_name = file_name + ".stl"
+                file_path = os.path.join(cur_output_directory, file_name)
+                sdf.write_binary_stl(file_path, world_space_points)
+                print("Saved mesh to", file_path)
+                print("Number of triangles", len(world_space_points) // 3)
+                
+            else :
+                print("No triangles found in an envelope")
+            
+    
+    
 # This renders an SDF for the whole volume
 # N - number of samples across axis; total num_points is N^3
 def save_mesh(model, dataloader, output_directory = "../results/mesh_stl", file_name = "out", N = 64, max_batch = 16 ** 3) :
