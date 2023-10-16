@@ -15,20 +15,25 @@ Checkout more information in our [report](./assets/Neural_Volumetric_Envelopes.p
 We learn a codebook + neural networks to compress a dataset of planes. Codebook+NN can highly compress mesh data, with MSE = 0.000511 and Compression factor = 1153.269.
 
 ![Example](./assets/shapes.png)
+
 Example of reconstructed shapes.
 
 ![Example envolopes](./assets/envelopes.png)
+
 Examples of learnt envolopes.
 
 ## Analysis
 
 ![tsne](./assets/tsne_codebook_entires.png)
+
 Code book showing similarity between different learnt envelopes.
 
 ![codebook_freq](./assets/codebook_freq.png)
+
 The code book is used well (i.e. none of the entires are unused).
 
 ![ablations](./assets/ablations.png)
+
 We conduct many ablations on various design decisions.
 
 ## Related work
@@ -55,8 +60,8 @@ Many works have explore similar directions. Our goal was to first get a baseline
 1) Can we convert the sdf for a single mesh into a fixed lattice grid envelope?
 2) How robust are the features to noise in the lattice structure?
 3) Can we learn this over a set of meshes?
-5) Can we store this in a single code-book?
-4) TBD: Can we use tetrahedral envelopes instead?
+4) Can we store this in a single code-book?
+5) TBD: Can we use tetrahedral envelopes instead?
 6) TBD: Is it better to apply this across class, or across a scene? TBD
 7) TBD: Can we generalize for different types of envelopes?
 
