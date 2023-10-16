@@ -38,7 +38,7 @@ We conduct many ablations on various design decisions.
 
 ## Related work
 
-Many works have explore similar directions. Our goal was to first get a baseline working, and then create an "adaptive" version of the envolopes where they are created and split based on the complexity of a given region. Here are some works which are relevant to this direction:
+Many works have explored similar directions in the past. Our goal was to first get a baseline working, and then create an "adaptive" version of the envolopes where they are created and split based on the complexity of a given region. Here are some works which are relevant to this direction:
 
 1) Implicit functions in feature space for 3d shape reconstruction and completion, Julian Chibane, Thiemo Alldieck, Gerard Pons-Moll, CVPR 2020
 
