@@ -105,8 +105,11 @@ def neuralSDF(model, surface_points, surface_normals=torch.tensor([])) :
 
     def f(p):
         p = torch.tensor(p, device = "cuda", dtype=torch.float32)
-        output = model.predict_sdf(p, surface_points, surface_normals)
+        output, additionals = model.predict_sdf(p, surface_points, surface_normals)
         output = output.cpu().detach()
+        for key, value in additionals.items():
+            additionals[key] = value.cpu().detach().numpy()
+        model.additionals = additionals
         output = np.array(output)
         return output
 
